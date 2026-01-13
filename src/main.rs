@@ -1,5 +1,6 @@
 mod app_state;
 mod camera;
+mod graphics;
 
 use crate::app_state::AppState;
 
@@ -28,6 +29,7 @@ impl ApplicationHandler for App {
             None => return,
         };
 
+        // TODO: move this to app state?
         match event {
             WindowEvent::CloseRequested => {
                 event_loop.exit();
