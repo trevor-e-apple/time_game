@@ -135,6 +135,7 @@ struct Model {
     num_vertices: u32,
     instance_buffer: wgpu::Buffer,
     num_instances: u32,
+    max_instances: usize,
 }
 
 pub struct GraphicsState {
@@ -300,34 +301,18 @@ impl GraphicsState {
             cache: None,
         });
 
-        let vertex_buffers = vec![];
+        let models = vec![];
 
-        let instances = vec![];
-
-        let instance_buffer = {
-            let instance_data = instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
-            device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("Instance Buffer"),
-                size: (mem::size_of::<InstanceRaw>() * instance_capacity) as wgpu::BufferAddress,
-                usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
-                mapped_at_creation: todo!(),
-                // label: Some("Instance Buffer"),
-                // contents: bytemuck::cast_slice(&instance_data),
-                // usage: wgpu::BufferUsages::VERTEX,
-            })
-        };
         Ok(Self {
             surface,
             device,
             queue,
             config,
             render_pipeline,
-            vertex_buffers,
             camera,
             camera_buffer,
             camera_bind_group,
-            instances,
-            instance_buffer,
+            models,
         })
     }
 
@@ -390,10 +375,8 @@ impl GraphicsState {
 
             for model in &self.models {
                 render_pass.set_vertex_buffer(0, model.vertex_buffer.slice(..));
-                for instance in &model.instances {
-                    render_pass.set_vertex_buffer(1, index_buffer);
-                    render_pass.draw(0..*num_vertices, 0..self.instances.len() as u32);
-                }
+                render_pass.set_vertex_buffer(1, model.instance_buffer.slice(..));
+                render_pass.draw(0..model.num_vertices, 0..model.num_instances);
             }
         }
 
@@ -421,12 +404,25 @@ impl GraphicsState {
             num_vertices: vertices.len() as u32,
             instance_buffer,
             num_instances: 0,
+            max_instances,
         });
     }
 
+    // TODO: maybe reallocate instance buffer if we exceed max instances?
     pub fn add_instance(&mut self, model_index: usize, instance: Instance) {
         if let Some(model) = self.models.get_mut(model_index) {
-            model.instances.push(instance);
+            assert!(
+                (model.num_instances as usize) < model.max_instances,
+                "Exceeded maximum number of instances for model"
+            );
+
+            self.queue.write_buffer(
+                &model.instance_buffer,
+                (model.num_instances as usize * mem::size_of::<InstanceRaw>())
+                    as wgpu::BufferAddress,
+                bytemuck::cast_slice(&[instance.to_raw()]),
+            );
+            model.num_instances += 1;
         }
     }
 }
