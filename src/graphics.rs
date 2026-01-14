@@ -4,7 +4,7 @@ use crate::camera::Camera;
 
 use anyhow::Context;
 use cgmath::{Matrix4, Point3, Quaternion, Rotation3, SquareMatrix, Vector3};
-use wgpu::util::DeviceExt;
+use wgpu::{Buffer, BufferUsages, util::DeviceExt};
 use winit::window::Window;
 
 #[repr(C)]
@@ -76,6 +76,7 @@ impl CameraUniform {
 }
 
 pub struct Instance {
+    pub vertex_buffer_index: usize,
     pub position: Vector3<f32>,
     pub scale: Vector3<f32>,
     pub rotation: Quaternion<f32>, // TODO: since we expect this game to be 2D, do we need full Quaternion support?
@@ -129,23 +130,27 @@ impl Instance {
     }
 }
 
+struct Model {
+    vertex_buffer: wgpu::Buffer,
+    num_vertices: u32,
+    instance_buffer: wgpu::Buffer,
+    num_instances: u32,
+}
+
 pub struct GraphicsState {
     surface: wgpu::Surface<'static>,
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
     render_pipeline: wgpu::RenderPipeline,
-    vertex_buffer: wgpu::Buffer,
-    num_vertices: u32,
+    models: Vec<Model>,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
-    instances: Vec<Instance>,
-    instance_buffer: wgpu::Buffer,
     pub camera: Camera,
 }
 
 impl GraphicsState {
-    pub async fn new(window: Arc<Window>) -> anyhow::Result<Self> {
+    pub async fn new(window: Arc<Window>, instance_capacity: usize) -> anyhow::Result<Self> {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends: wgpu::Backends::PRIMARY,
             ..Default::default()
@@ -295,49 +300,20 @@ impl GraphicsState {
             cache: None,
         });
 
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Vertex Buffer"),
-            contents: bytemuck::cast_slice(VERTICES),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
+        let vertex_buffers = vec![];
 
-        let instances: Vec<Instance> = {
-            let mut instances = vec![];
-            instances.push(Instance {
-                position: Vector3 {
-                    x: 0.0,
-                    y: 0.0,
-                    z: 0.0,
-                },
-                rotation: Quaternion::from_axis_angle(Vector3::unit_x(), cgmath::Deg(0.0)),
-                scale: Vector3 {
-                    x: 0.5,
-                    y: 0.5,
-                    z: 0.5,
-                },
-            });
-            instances.push(Instance {
-                position: Vector3 {
-                    x: 0.5,
-                    y: 0.0,
-                    z: 0.0,
-                },
-                rotation: Quaternion::from_axis_angle(Vector3::unit_x(), cgmath::Deg(0.0)),
-                scale: Vector3 {
-                    x: 1.0,
-                    y: 1.0,
-                    z: 1.0,
-                },
-            });
-            instances
-        };
+        let instances = vec![];
 
         let instance_buffer = {
             let instance_data = instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
-            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("Instance Buffer"),
-                contents: bytemuck::cast_slice(&instance_data),
-                usage: wgpu::BufferUsages::VERTEX,
+                size: (mem::size_of::<InstanceRaw>() * instance_capacity) as wgpu::BufferAddress,
+                usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
+                mapped_at_creation: todo!(),
+                // label: Some("Instance Buffer"),
+                // contents: bytemuck::cast_slice(&instance_data),
+                // usage: wgpu::BufferUsages::VERTEX,
             })
         };
         Ok(Self {
@@ -346,8 +322,7 @@ impl GraphicsState {
             queue,
             config,
             render_pipeline,
-            vertex_buffer,
-            num_vertices: VERTICES.len() as u32,
+            vertex_buffers,
             camera,
             camera_buffer,
             camera_bind_group,
@@ -412,13 +387,46 @@ impl GraphicsState {
 
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
-            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
-            render_pass.draw(0..self.num_vertices, 0..self.instances.len() as u32);
+
+            for model in &self.models {
+                render_pass.set_vertex_buffer(0, model.vertex_buffer.slice(..));
+                for instance in &model.instances {
+                    render_pass.set_vertex_buffer(1, index_buffer);
+                    render_pass.draw(0..*num_vertices, 0..self.instances.len() as u32);
+                }
+            }
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
         Ok(())
+    }
+
+    pub fn add_vertex_buffer(&mut self, vertices: &[Vertex2], max_instances: usize) {
+        let vertex_buffer = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Vertex Buffer"),
+                contents: bytemuck::cast_slice(vertices),
+                usage: BufferUsages::VERTEX,
+            });
+        let instance_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Instance Buffer"),
+            size: (mem::size_of::<InstanceRaw>() * max_instances) as wgpu::BufferAddress,
+            usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        self.models.push(Model {
+            vertex_buffer,
+            num_vertices: vertices.len() as u32,
+            instance_buffer,
+            num_instances: 0,
+        });
+    }
+
+    pub fn add_instance(&mut self, model_index: usize, instance: Instance) {
+        if let Some(model) = self.models.get_mut(model_index) {
+            model.instances.push(instance);
+        }
     }
 }
