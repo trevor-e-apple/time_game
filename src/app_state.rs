@@ -2,7 +2,10 @@ use std::sync::Arc;
 
 use crate::{
     camera::CameraController,
-    graphics::{GraphicsState, Instance, SQUARE_VERTICES, TRIANGLE_VERTICES},
+    graphics::{
+        GraphicsState, Instance, SQUARE_INDICES, SQUARE_VERTICES, TRIANGLE_INDICES,
+        TRIANGLE_VERTICES,
+    },
 };
 
 use cgmath::{Quaternion, Vector3};
@@ -22,8 +25,8 @@ impl AppState {
         let camera_controller = CameraController::new(0.01);
         let mut graphics_state = GraphicsState::new(window.clone()).await?;
 
-        let triangle_index = graphics_state.add_model(TRIANGLE_VERTICES, 2);
-        let square_index = graphics_state.add_model(SQUARE_VERTICES, 2);
+        let triangle_index = graphics_state.add_model(TRIANGLE_VERTICES, TRIANGLE_INDICES, 2);
+        let square_index = graphics_state.add_model(SQUARE_VERTICES, SQUARE_INDICES, 2);
 
         graphics_state.add_instance(
             triangle_index,

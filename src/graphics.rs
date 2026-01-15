@@ -4,7 +4,10 @@ use crate::camera::Camera;
 
 use anyhow::Context;
 use cgmath::{Matrix4, Point3, Quaternion, Rotation3, SquareMatrix, Vector3};
-use wgpu::{Buffer, BufferUsages, util::DeviceExt};
+use wgpu::{
+    Buffer, BufferUsages, IndexFormat,
+    util::{BufferInitDescriptor, DeviceExt},
+};
 use winit::window::Window;
 
 #[repr(C)]
@@ -49,6 +52,7 @@ pub const TRIANGLE_VERTICES: &[Vertex2] = &[
         color: [0.0, 0.0, 1.0],
     },
 ];
+pub const TRIANGLE_INDICES: &[u32] = &[0, 1, 2];
 
 pub const SQUARE_VERTICES: &[Vertex2] = &[
     Vertex2 {
@@ -64,18 +68,12 @@ pub const SQUARE_VERTICES: &[Vertex2] = &[
         color: [0.0, 1.0, 0.0],
     },
     Vertex2 {
-        position: [-0.5, 0.5],
-        color: [1.0, 0.0, 0.0],
-    },
-    Vertex2 {
         position: [-0.5, -0.5],
         color: [1.0, 1.0, 0.0],
     },
-    Vertex2 {
-        position: [0.5, -0.5],
-        color: [0.0, 0.0, 1.0],
-    },
 ];
+
+pub const SQUARE_INDICES: &[u32] = &[0, 1, 2, 0, 3, 1];
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -159,6 +157,8 @@ impl Instance {
 struct Model {
     vertex_buffer: wgpu::Buffer,
     num_vertices: u32,
+    index_buffer: wgpu::Buffer,
+    num_indices: u32,
     instance_buffer: wgpu::Buffer,
     num_instances: u32,
     max_instances: usize,
@@ -401,8 +401,10 @@ impl GraphicsState {
 
             for model in &self.models {
                 render_pass.set_vertex_buffer(0, model.vertex_buffer.slice(..));
+                render_pass.set_index_buffer(model.index_buffer.slice(..), IndexFormat::Uint32);
                 render_pass.set_vertex_buffer(1, model.instance_buffer.slice(..));
-                render_pass.draw(0..model.num_vertices, 0..model.num_instances);
+                // render_pass.draw(0..model.num_vertices, 0..model.num_instances);
+                render_pass.draw_indexed(0..model.num_indices, 0, 0..model.num_instances);
             }
         }
 
@@ -411,14 +413,22 @@ impl GraphicsState {
         Ok(())
     }
 
-    pub fn add_model(&mut self, vertices: &[Vertex2], max_instances: usize) -> usize {
-        let vertex_buffer = self
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Vertex Buffer"),
-                contents: bytemuck::cast_slice(vertices),
-                usage: BufferUsages::VERTEX,
-            });
+    pub fn add_model(
+        &mut self,
+        vertices: &[Vertex2],
+        indices: &[u32],
+        max_instances: usize,
+    ) -> usize {
+        let vertex_buffer = self.device.create_buffer_init(&BufferInitDescriptor {
+            label: Some("Vertex Buffer"),
+            contents: bytemuck::cast_slice(vertices),
+            usage: BufferUsages::VERTEX,
+        });
+        let index_buffer = self.device.create_buffer_init(&BufferInitDescriptor {
+            label: Some("Index Buffer"),
+            contents: bytemuck::cast_slice(indices),
+            usage: BufferUsages::INDEX,
+        });
         let instance_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Instance Buffer"),
             size: (mem::size_of::<InstanceRaw>() * max_instances) as wgpu::BufferAddress,
@@ -430,6 +440,8 @@ impl GraphicsState {
         self.models.push(Model {
             vertex_buffer,
             num_vertices: vertices.len() as u32,
+            index_buffer,
+            num_indices: indices.len() as u32,
             instance_buffer,
             num_instances: 0,
             max_instances,
