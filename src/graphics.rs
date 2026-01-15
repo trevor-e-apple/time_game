@@ -35,7 +35,7 @@ impl Vertex2 {
     }
 }
 
-pub const VERTICES: &[Vertex2] = &[
+pub const TRIANGLE_VERTICES: &[Vertex2] = &[
     Vertex2 {
         position: [0.0, 0.5],
         color: [1.0, 0.0, 0.0],
@@ -43,6 +43,33 @@ pub const VERTICES: &[Vertex2] = &[
     Vertex2 {
         position: [-0.5, -0.5],
         color: [0.0, 1.0, 0.0],
+    },
+    Vertex2 {
+        position: [0.5, -0.5],
+        color: [0.0, 0.0, 1.0],
+    },
+];
+
+pub const SQUARE_VERTICES: &[Vertex2] = &[
+    Vertex2 {
+        position: [-0.5, 0.5],
+        color: [1.0, 0.0, 0.0],
+    },
+    Vertex2 {
+        position: [0.5, -0.5],
+        color: [0.0, 0.0, 1.0],
+    },
+    Vertex2 {
+        position: [0.5, 0.5],
+        color: [0.0, 1.0, 0.0],
+    },
+    Vertex2 {
+        position: [-0.5, 0.5],
+        color: [1.0, 0.0, 0.0],
+    },
+    Vertex2 {
+        position: [-0.5, -0.5],
+        color: [1.0, 1.0, 0.0],
     },
     Vertex2 {
         position: [0.5, -0.5],
@@ -76,7 +103,6 @@ impl CameraUniform {
 }
 
 pub struct Instance {
-    pub vertex_buffer_index: usize,
     pub position: Vector3<f32>,
     pub scale: Vector3<f32>,
     pub rotation: Quaternion<f32>, // TODO: since we expect this game to be 2D, do we need full Quaternion support?
@@ -151,7 +177,7 @@ pub struct GraphicsState {
 }
 
 impl GraphicsState {
-    pub async fn new(window: Arc<Window>, instance_capacity: usize) -> anyhow::Result<Self> {
+    pub async fn new(window: Arc<Window>) -> anyhow::Result<Self> {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends: wgpu::Backends::PRIMARY,
             ..Default::default()
@@ -385,7 +411,7 @@ impl GraphicsState {
         Ok(())
     }
 
-    pub fn add_vertex_buffer(&mut self, vertices: &[Vertex2], max_instances: usize) {
+    pub fn add_model(&mut self, vertices: &[Vertex2], max_instances: usize) -> usize {
         let vertex_buffer = self
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -399,6 +425,8 @@ impl GraphicsState {
             usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
+
+        let model_index = self.models.len();
         self.models.push(Model {
             vertex_buffer,
             num_vertices: vertices.len() as u32,
@@ -406,6 +434,8 @@ impl GraphicsState {
             num_instances: 0,
             max_instances,
         });
+
+        model_index
     }
 
     // TODO: maybe reallocate instance buffer if we exceed max instances?
