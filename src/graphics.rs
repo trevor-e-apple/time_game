@@ -1,17 +1,19 @@
 use std::{mem, sync::Arc};
 
-use crate::camera::Camera;
+use crate::{camera::Camera, texture::Texture};
 
 use anyhow::Context;
 use cgmath::{Matrix4, Point3, Quaternion, SquareMatrix, Vector3};
 use wgpu::{
-    BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor, BindGroupLayoutEntry,
-    BindingType, BlendState, BufferBindingType, BufferDescriptor, BufferUsages, ColorTargetState,
-    ColorWrites, CommandEncoderDescriptor, Face, FragmentState, FrontFace, IndexFormat, LoadOp,
+    BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor,
+    BindGroupLayoutEntry, BindingType, BlendState, BufferBindingType, BufferDescriptor,
+    BufferUsages, ColorTargetState, ColorWrites, CommandEncoderDescriptor, CompareFunction,
+    DepthBiasState, DepthStencilState, Face, FragmentState, FrontFace, IndexFormat, LoadOp,
     MultisampleState, PipelineCompilationOptions, PipelineLayoutDescriptor, PolygonMode,
     PowerPreference, PrimitiveState, PrimitiveTopology, RenderPassColorAttachment,
-    RenderPassDescriptor, RenderPipelineDescriptor, RequestAdapterOptions, ShaderModuleDescriptor,
-    ShaderSource, ShaderStages, StoreOp, SurfaceConfiguration, TextureUsages,
+    RenderPassDepthStencilAttachment, RenderPassDescriptor, RenderPipeline,
+    RenderPipelineDescriptor, RequestAdapterOptions, ShaderModuleDescriptor, ShaderSource,
+    ShaderStages, StencilState, StoreOp, Surface, SurfaceConfiguration, TextureUsages,
     TextureViewDescriptor, VertexAttribute, VertexBufferLayout, VertexFormat, VertexState,
     VertexStepMode,
     util::{BufferInitDescriptor, DeviceExt},
@@ -201,15 +203,16 @@ struct Model {
 }
 
 pub struct GraphicsState {
-    surface: wgpu::Surface<'static>,
+    surface: Surface<'static>,
     device: wgpu::Device,
     queue: wgpu::Queue,
-    config: wgpu::SurfaceConfiguration,
-    render_pipeline: wgpu::RenderPipeline,
+    config: SurfaceConfiguration,
+    render_pipeline: RenderPipeline,
     models: Vec<Model>,
     camera_buffer: wgpu::Buffer,
-    camera_bind_group: wgpu::BindGroup,
+    camera_bind_group: BindGroup,
     pub camera: Camera,
+    depth_texture: Texture,
 }
 
 impl GraphicsState {
@@ -352,7 +355,13 @@ impl GraphicsState {
                 polygon_mode: PolygonMode::Fill,
                 conservative: false,
             },
-            depth_stencil: None,
+            depth_stencil: Some(DepthStencilState {
+                format: Texture::DEPTH_FORMAT,
+                depth_write_enabled: true,
+                depth_compare: CompareFunction::Less,
+                stencil: StencilState::default(),
+                bias: DepthBiasState::default(),
+            }),
             multisample: MultisampleState {
                 count: 1,
                 mask: !0,
@@ -361,6 +370,8 @@ impl GraphicsState {
             multiview: None,
             cache: None,
         });
+
+        let depth_texture = Texture::create_depth_texture(&device, &config, "Depth Texture");
 
         let models = vec![];
 
@@ -374,6 +385,7 @@ impl GraphicsState {
             camera_buffer,
             camera_bind_group,
             models,
+            depth_texture,
         })
     }
 
@@ -382,6 +394,9 @@ impl GraphicsState {
         self.config.width = width;
         self.config.height = height;
         self.surface.configure(&self.device, &self.config);
+
+        self.depth_texture =
+            Texture::create_depth_texture(&self.device, &self.config, "Depth Texture");
     }
 
     pub fn update_camera_buffer(&mut self) {
@@ -426,7 +441,14 @@ impl GraphicsState {
                     },
                     depth_slice: None,
                 })],
-                depth_stencil_attachment: None,
+                depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
+                    view: &self.depth_texture.view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: LoadOp::Clear(1.0),
+                        store: StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
                 occlusion_query_set: None,
                 timestamp_writes: None,
             });
