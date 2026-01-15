@@ -3,16 +3,17 @@ use std::{mem, sync::Arc};
 use crate::camera::Camera;
 
 use anyhow::Context;
-use cgmath::{Matrix4, Point3, Quaternion, Rotation3, SquareMatrix, Vector3};
+use cgmath::{Matrix4, Point3, Quaternion, SquareMatrix, Vector3};
 use wgpu::{
     BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor, BindGroupLayoutEntry,
-    BindingType, BlendState, Buffer, BufferBindingType, BufferDescriptor, BufferUsages,
-    ColorTargetState, ColorWrites, CommandEncoderDescriptor, Face, FragmentState, FrontFace,
-    IndexFormat, LoadOp, MultisampleState, PipelineCompilationOptions, PipelineLayoutDescriptor,
-    PolygonMode, PowerPreference, PrimitiveState, PrimitiveTopology, RenderPassColorAttachment,
+    BindingType, BlendState, BufferBindingType, BufferDescriptor, BufferUsages, ColorTargetState,
+    ColorWrites, CommandEncoderDescriptor, Face, FragmentState, FrontFace, IndexFormat, LoadOp,
+    MultisampleState, PipelineCompilationOptions, PipelineLayoutDescriptor, PolygonMode,
+    PowerPreference, PrimitiveState, PrimitiveTopology, RenderPassColorAttachment,
     RenderPassDescriptor, RenderPipelineDescriptor, RequestAdapterOptions, ShaderModuleDescriptor,
     ShaderSource, ShaderStages, StoreOp, SurfaceConfiguration, TextureUsages,
-    TextureViewDescriptor, VertexState,
+    TextureViewDescriptor, VertexAttribute, VertexBufferLayout, VertexFormat, VertexState,
+    VertexStepMode,
     util::{BufferInitDescriptor, DeviceExt},
 };
 use winit::window::Window;
@@ -25,57 +26,85 @@ pub struct Vertex2 {
 }
 
 impl Vertex2 {
-    pub fn buffer_layout() -> wgpu::VertexBufferLayout<'static> {
-        wgpu::VertexBufferLayout {
+    pub fn buffer_layout() -> VertexBufferLayout<'static> {
+        VertexBufferLayout {
             array_stride: std::mem::size_of::<Vertex2>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Vertex,
+            step_mode: VertexStepMode::Vertex,
             attributes: &[
-                wgpu::VertexAttribute {
+                VertexAttribute {
                     offset: 0,
                     shader_location: 0,
-                    format: wgpu::VertexFormat::Float32x2,
+                    format: VertexFormat::Float32x2,
                 },
-                wgpu::VertexAttribute {
+                VertexAttribute {
                     offset: std::mem::size_of::<[f32; 2]>() as wgpu::BufferAddress,
                     shader_location: 1,
-                    format: wgpu::VertexFormat::Float32x3,
+                    format: VertexFormat::Float32x3,
                 },
             ],
         }
     }
 }
 
-pub const TRIANGLE_VERTICES: &[Vertex2] = &[
-    Vertex2 {
-        position: [0.0, 0.5],
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct Vertex3 {
+    pub position: [f32; 3],
+    pub color: [f32; 3],
+}
+
+impl Vertex3 {
+    pub fn buffer_layout() -> wgpu::VertexBufferLayout<'static> {
+        VertexBufferLayout {
+            array_stride: std::mem::size_of::<Vertex3>() as wgpu::BufferAddress,
+            step_mode: VertexStepMode::Vertex,
+            attributes: &[
+                VertexAttribute {
+                    offset: 0,
+                    shader_location: 0,
+                    format: VertexFormat::Float32x3,
+                },
+                VertexAttribute {
+                    offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
+                    shader_location: 1,
+                    format: VertexFormat::Float32x3,
+                },
+            ],
+        }
+    }
+}
+
+pub const TRIANGLE_VERTICES: &[Vertex3] = &[
+    Vertex3 {
+        position: [0.0, 0.5, 0.0],
         color: [1.0, 0.0, 0.0],
     },
-    Vertex2 {
-        position: [-0.5, -0.5],
+    Vertex3 {
+        position: [-0.5, -0.5, 0.0],
         color: [0.0, 1.0, 0.0],
     },
-    Vertex2 {
-        position: [0.5, -0.5],
+    Vertex3 {
+        position: [0.5, -0.5, 0.0],
         color: [0.0, 0.0, 1.0],
     },
 ];
 pub const TRIANGLE_INDICES: &[u32] = &[0, 1, 2];
 
-pub const SQUARE_VERTICES: &[Vertex2] = &[
-    Vertex2 {
-        position: [-0.5, 0.5],
+pub const SQUARE_VERTICES: &[Vertex3] = &[
+    Vertex3 {
+        position: [-0.5, 0.5, 0.0],
         color: [1.0, 0.0, 0.0],
     },
-    Vertex2 {
-        position: [0.5, -0.5],
+    Vertex3 {
+        position: [0.5, -0.5, 0.0],
         color: [0.0, 0.0, 1.0],
     },
-    Vertex2 {
-        position: [0.5, 0.5],
+    Vertex3 {
+        position: [0.5, 0.5, 0.0],
         color: [0.0, 1.0, 0.0],
     },
-    Vertex2 {
-        position: [-0.5, -0.5],
+    Vertex3 {
+        position: [-0.5, -0.5, 0.0],
         color: [1.0, 1.0, 0.0],
     },
 ];
@@ -302,7 +331,7 @@ impl GraphicsState {
                 module: &shader,
                 entry_point: Some("vs_main"),
                 compilation_options: PipelineCompilationOptions::default(),
-                buffers: &[Vertex2::buffer_layout(), InstanceRaw::buffer_layout()],
+                buffers: &[Vertex3::buffer_layout(), InstanceRaw::buffer_layout()],
             },
             fragment: Some(FragmentState {
                 module: &shader,
@@ -421,7 +450,7 @@ impl GraphicsState {
 
     pub fn add_model(
         &mut self,
-        vertices: &[Vertex2],
+        vertices: &[Vertex3],
         indices: &[u32],
         max_instances: usize,
     ) -> usize {
