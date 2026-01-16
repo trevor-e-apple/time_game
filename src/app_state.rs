@@ -25,21 +25,13 @@ impl AppState {
         let camera_controller = CameraController::new(0.01);
         let mut graphics_state = GraphicsState::new(window.clone()).await?;
 
-        let triangle_index = graphics_state.add_model(TRIANGLE_VERTICES, TRIANGLE_INDICES, 2);
-        let square_index = graphics_state.add_model(SQUARE_VERTICES, SQUARE_INDICES, 2);
+        let triangle_index = graphics_state.add_model(TRIANGLE_VERTICES, TRIANGLE_INDICES, 8);
+        let square_index = graphics_state.add_model(SQUARE_VERTICES, SQUARE_INDICES, 8);
 
         graphics_state.add_instance(
             triangle_index,
             Instance {
-                position: Vector3::new(-0.5, 0.5, 0.0),
-                scale: Vector3::new(0.5, 0.5, 1.0),
-                rotation: Quaternion::new(1.0, 0.0, 0.0, 0.0),
-            },
-        );
-        graphics_state.add_instance(
-            triangle_index,
-            Instance {
-                position: Vector3::new(0.5, -0.5, 0.0),
+                position: Vector3::new(0.0, 0.0, -1.0),
                 scale: Vector3::new(0.5, 0.5, 1.0),
                 rotation: Quaternion::new(1.0, 0.0, 0.0, 0.0),
             },
@@ -47,15 +39,7 @@ impl AppState {
         graphics_state.add_instance(
             square_index,
             Instance {
-                position: Vector3::new(-0.5, -0.5, 0.0),
-                scale: Vector3::new(0.5, 0.5, 1.0),
-                rotation: Quaternion::new(1.0, 0.0, 0.0, 0.0),
-            },
-        );
-        graphics_state.add_instance(
-            square_index,
-            Instance {
-                position: Vector3::new(0.5, 0.5, 0.0),
+                position: Vector3::new(0.0, 0.0, 0.0),
                 scale: Vector3::new(0.5, 0.5, 1.0),
                 rotation: Quaternion::new(1.0, 0.0, 0.0, 0.0),
             },
