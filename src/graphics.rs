@@ -4,6 +4,7 @@ use crate::{camera::Camera, texture::Texture};
 
 use anyhow::Context;
 use cgmath::{Matrix4, Point3, Quaternion, SquareMatrix, Vector3};
+use image::GenericImageView;
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor,
     BindGroupLayoutEntry, BindingType, BlendState, BufferBindingType, BufferDescriptor,
@@ -374,6 +375,12 @@ impl GraphicsState {
         let depth_texture = Texture::create_depth_texture(&device, &config, "Depth Texture");
 
         let models = vec![];
+
+        let diffuse_bytes = include_bytes!("../data/happy-tree.png");
+        let diffuse_image =
+            image::load_from_memory(diffuse_bytes).context("Failed to load texture")?;
+        let diffuse_rgba = diffuse_image.to_rgba8();
+        let dimensions = diffuse_image.dimensions();
 
         Ok(Self {
             surface,
