@@ -6,18 +6,21 @@ use anyhow::Context;
 use cgmath::{Matrix4, Point3, Quaternion, SquareMatrix, Vector3};
 use image::GenericImageView;
 use wgpu::{
-    BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor,
-    BindGroupLayoutEntry, BindingType, BlendState, BufferBindingType, BufferDescriptor,
-    BufferUsages, ColorTargetState, ColorWrites, CommandEncoderDescriptor, CompareFunction,
-    DepthBiasState, DepthStencilState, Face, FragmentState, FrontFace, IndexFormat, LoadOp,
-    MultisampleState, PipelineCompilationOptions, PipelineLayoutDescriptor, PolygonMode,
-    PowerPreference, PrimitiveState, PrimitiveTopology, RenderPassColorAttachment,
-    RenderPassDepthStencilAttachment, RenderPassDescriptor, RenderPipeline,
-    RenderPipelineDescriptor, RequestAdapterOptions, ShaderModuleDescriptor, ShaderSource,
-    ShaderStages, StencilState, StoreOp, Surface, SurfaceConfiguration, TextureUsages,
-    TextureViewDescriptor, VertexAttribute, VertexBufferLayout, VertexFormat, VertexState,
-    VertexStepMode,
+    AddressMode, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor,
+    BindGroupLayoutEntry, BindingResource, BindingType, BlendState, BufferBindingType,
+    BufferDescriptor, BufferUsages, ColorTargetState, ColorWrites, CommandEncoderDescriptor,
+    CompareFunction, DepthBiasState, DepthStencilState, Extent3d, Face, FilterMode, FragmentState,
+    FrontFace, IndexFormat, LoadOp, MultisampleState, Origin3d, PipelineCompilationOptions,
+    PipelineLayoutDescriptor, PolygonMode, PowerPreference, PrimitiveState, PrimitiveTopology,
+    RenderPassColorAttachment, RenderPassDepthStencilAttachment, RenderPassDescriptor,
+    RenderPipeline, RenderPipelineDescriptor, RequestAdapterOptions, SamplerBindingType,
+    ShaderModuleDescriptor, ShaderSource, ShaderStages, StencilState, StoreOp, Surface,
+    SurfaceConfiguration, TexelCopyBufferLayout, TexelCopyTextureInfo, TextureAspect,
+    TextureDimension, TextureFormat, TextureSampleType, TextureUsages, TextureView,
+    TextureViewDescriptor, TextureViewDimension, VertexAttribute, VertexBufferLayout, VertexFormat,
+    VertexState, VertexStepMode,
     util::{BufferInitDescriptor, DeviceExt},
+    wgt::{SamplerDescriptor, TextureDescriptor},
 };
 use winit::window::Window;
 
@@ -25,7 +28,7 @@ use winit::window::Window;
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Vertex2 {
     pub position: [f32; 2],
-    pub color: [f32; 3],
+    pub tex_coords: [f32; 2],
 }
 
 impl Vertex2 {
@@ -42,7 +45,7 @@ impl Vertex2 {
                 VertexAttribute {
                     offset: std::mem::size_of::<[f32; 2]>() as wgpu::BufferAddress,
                     shader_location: 1,
-                    format: VertexFormat::Float32x3,
+                    format: VertexFormat::Float32x2,
                 },
             ],
         }
@@ -53,7 +56,7 @@ impl Vertex2 {
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Vertex3 {
     pub position: [f32; 3],
-    pub color: [f32; 3],
+    pub tex_coords: [f32; 2],
 }
 
 impl Vertex3 {
@@ -70,25 +73,26 @@ impl Vertex3 {
                 VertexAttribute {
                     offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
                     shader_location: 1,
-                    format: VertexFormat::Float32x3,
+                    format: VertexFormat::Float32x2,
                 },
             ],
         }
     }
 }
 
+// TODO: delete triangle vertices? or move to debug-exclusive code?
 pub const TRIANGLE_VERTICES: &[Vertex3] = &[
     Vertex3 {
         position: [0.0, 0.5, 0.0],
-        color: [1.0, 0.0, 0.0],
+        tex_coords: [0.0, 0.0], // Debug code, not currently set
     },
     Vertex3 {
         position: [-0.5, -0.5, 0.0],
-        color: [1.0, 0.0, 0.0],
+        tex_coords: [0.0, 0.0],
     },
     Vertex3 {
         position: [0.5, -0.5, 0.0],
-        color: [1.0, 0.0, 0.0],
+        tex_coords: [0.0, 0.0],
     },
 ];
 pub const TRIANGLE_INDICES: &[u32] = &[0, 1, 2];
@@ -96,19 +100,19 @@ pub const TRIANGLE_INDICES: &[u32] = &[0, 1, 2];
 pub const SQUARE_VERTICES: &[Vertex3] = &[
     Vertex3 {
         position: [-0.5, 0.5, 0.0],
-        color: [0.0, 1.0, 0.0],
+        tex_coords: [0.0, 0.0],
     },
     Vertex3 {
         position: [0.5, -0.5, 0.0],
-        color: [0.0, 1.0, 0.0],
+        tex_coords: [1.0, 1.0],
     },
     Vertex3 {
         position: [0.5, 0.5, 0.0],
-        color: [0.0, 1.0, 0.0],
+        tex_coords: [1.0, 0.0],
     },
     Vertex3 {
         position: [-0.5, -0.5, 0.0],
-        color: [0.0, 1.0, 0.0],
+        tex_coords: [0.0, 1.0],
     },
 ];
 
@@ -214,6 +218,7 @@ pub struct GraphicsState {
     camera_bind_group: BindGroup,
     pub camera: Camera,
     depth_texture: Texture,
+    diffuse_bind_group: BindGroup,
 }
 
 impl GraphicsState {
@@ -322,9 +327,100 @@ impl GraphicsState {
             }],
         });
 
+        let (texture_bind_group_layout, diffuse_bind_group) = {
+            let diffuse_bytes = include_bytes!("../data/happy-tree.png");
+            let diffuse_image =
+                image::load_from_memory(diffuse_bytes).context("Failed to load texture")?;
+            let diffuse_rgba = diffuse_image.to_rgba8();
+            let dimensions = diffuse_image.dimensions();
+            let texture_size = Extent3d {
+                width: dimensions.0,
+                height: dimensions.1,
+                depth_or_array_layers: 1,
+            };
+            let diffuse_texture = device.create_texture(&TextureDescriptor {
+                label: Some("Diffuse Texture"),
+                size: texture_size,
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: TextureDimension::D2,
+                format: TextureFormat::Rgba8UnormSrgb,
+                usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
+                view_formats: &[],
+            });
+
+            queue.write_texture(
+                TexelCopyTextureInfo {
+                    texture: &diffuse_texture,
+                    mip_level: 0,
+                    origin: Origin3d::ZERO,
+                    aspect: TextureAspect::All,
+                },
+                &diffuse_rgba,
+                TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(4 * dimensions.0),
+                    rows_per_image: Some(dimensions.1),
+                },
+                texture_size,
+            );
+
+            let diffuse_texture_view =
+                diffuse_texture.create_view(&TextureViewDescriptor::default());
+            let diffuse_sampler = device.create_sampler(&SamplerDescriptor {
+                label: Some("Diffuse Sampler"),
+                address_mode_u: AddressMode::ClampToEdge,
+                address_mode_v: AddressMode::ClampToEdge,
+                address_mode_w: AddressMode::ClampToEdge,
+                mag_filter: FilterMode::Linear,
+                min_filter: FilterMode::Nearest,
+                mipmap_filter: FilterMode::Nearest,
+                ..Default::default()
+            });
+
+            let texture_bind_group_layout =
+                device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+                    label: Some("Texture Bind Group Layout"),
+                    entries: &[
+                        BindGroupLayoutEntry {
+                            binding: 0,
+                            visibility: ShaderStages::FRAGMENT,
+                            ty: BindingType::Texture {
+                                multisampled: false,
+                                view_dimension: TextureViewDimension::D2,
+                                sample_type: TextureSampleType::Float { filterable: true },
+                            },
+                            count: None,
+                        },
+                        BindGroupLayoutEntry {
+                            binding: 1,
+                            visibility: ShaderStages::FRAGMENT,
+                            ty: BindingType::Sampler(SamplerBindingType::Filtering),
+                            count: None,
+                        },
+                    ],
+                });
+            let diffuse_bind_group = device.create_bind_group(&BindGroupDescriptor {
+                label: Some("Diffuse Bind Group"),
+                layout: &texture_bind_group_layout,
+                entries: &[
+                    BindGroupEntry {
+                        binding: 0,
+                        resource: BindingResource::TextureView(&diffuse_texture_view),
+                    },
+                    BindGroupEntry {
+                        binding: 1,
+                        resource: BindingResource::Sampler(&diffuse_sampler),
+                    },
+                ],
+            });
+
+            (texture_bind_group_layout, diffuse_bind_group)
+        };
+
         let render_pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
             label: Some("Render Pipeline Layout"),
-            bind_group_layouts: &[&camera_bind_group_layout],
+            bind_group_layouts: &[&texture_bind_group_layout, &camera_bind_group_layout],
             push_constant_ranges: &[],
         });
 
@@ -376,12 +472,6 @@ impl GraphicsState {
 
         let models = vec![];
 
-        let diffuse_bytes = include_bytes!("../data/happy-tree.png");
-        let diffuse_image =
-            image::load_from_memory(diffuse_bytes).context("Failed to load texture")?;
-        let diffuse_rgba = diffuse_image.to_rgba8();
-        let dimensions = diffuse_image.dimensions();
-
         Ok(Self {
             surface,
             device,
@@ -393,6 +483,7 @@ impl GraphicsState {
             camera_bind_group,
             models,
             depth_texture,
+            diffuse_bind_group,
         })
     }
 
@@ -461,13 +552,13 @@ impl GraphicsState {
             });
 
             render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
+            render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
+            render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
 
             for model in &self.models {
                 render_pass.set_vertex_buffer(0, model.vertex_buffer.slice(..));
                 render_pass.set_index_buffer(model.index_buffer.slice(..), IndexFormat::Uint32);
                 render_pass.set_vertex_buffer(1, model.instance_buffer.slice(..));
-                // render_pass.draw(0..model.num_vertices, 0..model.num_instances);
                 render_pass.draw_indexed(0..model.num_indices, 0, 0..model.num_instances);
             }
         }
