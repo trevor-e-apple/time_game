@@ -1,4 +1,4 @@
-use std::{mem, sync::Arc};
+use std::{env, fs::File, io::Read, mem, path::Path, sync::Arc};
 
 use crate::{camera::Camera, texture::Texture};
 
@@ -14,8 +14,8 @@ use wgpu::{
     PipelineLayoutDescriptor, PolygonMode, PowerPreference, PrimitiveState, PrimitiveTopology,
     RenderPassColorAttachment, RenderPassDepthStencilAttachment, RenderPassDescriptor,
     RenderPipeline, RenderPipelineDescriptor, RequestAdapterOptions, SamplerBindingType,
-    ShaderModuleDescriptor, ShaderSource, ShaderStages, StencilState, StoreOp, Surface,
-    SurfaceConfiguration, TexelCopyBufferLayout, TexelCopyTextureInfo, TextureAspect,
+    ShaderModule, ShaderModuleDescriptor, ShaderSource, ShaderStages, StencilState, StoreOp,
+    Surface, SurfaceConfiguration, TexelCopyBufferLayout, TexelCopyTextureInfo, TextureAspect,
     TextureDimension, TextureFormat, TextureSampleType, TextureUsages, TextureView,
     TextureViewDescriptor, TextureViewDimension, VertexAttribute, VertexBufferLayout, VertexFormat,
     VertexState, VertexStepMode,
@@ -207,12 +207,30 @@ struct Model {
     max_instances: usize,
 }
 
+///
+fn load_shader(device: &wgpu::Device, shader_file_name: &str, shader_label: &str) -> ShaderModule {
+    let shader_source_dir = env::var("SHADER_SOURCE_DIR").unwrap();
+    let shader_path = Path::new(&shader_source_dir).join(shader_file_name);
+    let mut shader_source_file = File::open(shader_path).unwrap();
+
+    let mut shader_source_string = String::new();
+    shader_source_file
+        .read_to_string(&mut shader_source_string)
+        .unwrap();
+
+    device.create_shader_module(ShaderModuleDescriptor {
+        label: Some(shader_label),
+        source: ShaderSource::Wgsl(shader_source_string.into()),
+    })
+}
+
 pub struct GraphicsState {
     surface: Surface<'static>,
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: SurfaceConfiguration,
     render_pipeline: RenderPipeline,
+    debug_pipeline: RenderPipeline,
     models: Vec<Model>,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: BindGroup,
@@ -278,12 +296,6 @@ impl GraphicsState {
         };
 
         surface.configure(&device, &config);
-
-        // TODO: set shader source parent directory in an environment variable
-        let shader = device.create_shader_module(ShaderModuleDescriptor {
-            label: Some("Shader"),
-            source: ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
-        });
 
         let camera = Camera {
             eye: Point3::new(0.0, 0.0, 2.0),
@@ -418,55 +430,116 @@ impl GraphicsState {
             (texture_bind_group_layout, diffuse_bind_group)
         };
 
-        let render_pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
-            label: Some("Render Pipeline Layout"),
-            bind_group_layouts: &[&texture_bind_group_layout, &camera_bind_group_layout],
-            push_constant_ranges: &[],
-        });
+        let render_pipeline = {
+            let shader = load_shader(&device, "shader.wgsl", "Render pipeline shader");
 
-        let render_pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
-            label: Some("Render Pipeline"),
-            layout: Some(&render_pipeline_layout),
-            vertex: VertexState {
-                module: &shader,
-                entry_point: Some("vs_main"),
-                compilation_options: PipelineCompilationOptions::default(),
-                buffers: &[Vertex3::buffer_layout(), InstanceRaw::buffer_layout()],
-            },
-            fragment: Some(FragmentState {
-                module: &shader,
-                entry_point: Some("fs_main"),
-                compilation_options: PipelineCompilationOptions::default(),
-                targets: &[Some(ColorTargetState {
-                    format: config.format,
-                    blend: Some(BlendState::REPLACE),
-                    write_mask: ColorWrites::ALL,
-                })],
-            }),
-            primitive: PrimitiveState {
-                topology: PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: FrontFace::Ccw,
-                cull_mode: Some(Face::Back),
-                unclipped_depth: false,
-                polygon_mode: PolygonMode::Fill,
-                conservative: false,
-            },
-            depth_stencil: Some(DepthStencilState {
-                format: Texture::DEPTH_FORMAT,
-                depth_write_enabled: true,
-                depth_compare: CompareFunction::Less,
-                stencil: StencilState::default(),
-                bias: DepthBiasState::default(),
-            }),
-            multisample: MultisampleState {
-                count: 1,
-                mask: !0,
-                alpha_to_coverage_enabled: false,
-            },
-            multiview: None,
-            cache: None,
-        });
+            let render_pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
+                label: Some("Render Pipeline Layout"),
+                bind_group_layouts: &[&texture_bind_group_layout, &camera_bind_group_layout],
+                push_constant_ranges: &[],
+            });
+
+            let render_pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
+                label: Some("Render Pipeline"),
+                layout: Some(&render_pipeline_layout),
+                vertex: VertexState {
+                    module: &shader,
+                    entry_point: Some("vs_main"),
+                    compilation_options: PipelineCompilationOptions::default(),
+                    buffers: &[Vertex3::buffer_layout(), InstanceRaw::buffer_layout()],
+                },
+                fragment: Some(FragmentState {
+                    module: &shader,
+                    entry_point: Some("fs_main"),
+                    compilation_options: PipelineCompilationOptions::default(),
+                    targets: &[Some(ColorTargetState {
+                        format: config.format,
+                        blend: Some(BlendState::REPLACE),
+                        write_mask: ColorWrites::ALL,
+                    })],
+                }),
+                primitive: PrimitiveState {
+                    topology: PrimitiveTopology::TriangleList,
+                    strip_index_format: None,
+                    front_face: FrontFace::Ccw,
+                    cull_mode: Some(Face::Back),
+                    unclipped_depth: false,
+                    polygon_mode: PolygonMode::Fill,
+                    conservative: false,
+                },
+                depth_stencil: Some(DepthStencilState {
+                    format: Texture::DEPTH_FORMAT,
+                    depth_write_enabled: true,
+                    depth_compare: CompareFunction::Less,
+                    stencil: StencilState::default(),
+                    bias: DepthBiasState::default(),
+                }),
+                multisample: MultisampleState {
+                    count: 1,
+                    mask: !0,
+                    alpha_to_coverage_enabled: false,
+                },
+                multiview: None,
+                cache: None,
+            });
+
+            render_pipeline
+        };
+
+        let debug_pipeline = {
+            let shader = load_shader(&device, "debug_shader.wgsl", "Debug pipeline shader");
+
+            let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
+                label: Some("Debug Pipeline Layout"),
+                bind_group_layouts: &[],
+                push_constant_ranges: &[],
+            });
+            let debug_pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
+                label: Some("Debug Pipeline"),
+                layout: Some(&pipeline_layout),
+                vertex: VertexState {
+                    module: &shader,
+                    entry_point: Some("vs_main"),
+                    compilation_options: PipelineCompilationOptions::default(),
+                    buffers: &[Vertex2::buffer_layout()],
+                },
+                fragment: Some(FragmentState {
+                    module: &shader,
+                    entry_point: Some("fs_main"),
+                    compilation_options: PipelineCompilationOptions::default(),
+                    targets: &[Some(ColorTargetState {
+                        format: config.format,
+                        blend: Some(BlendState::REPLACE),
+                        write_mask: ColorWrites::ALL,
+                    })],
+                }),
+                primitive: PrimitiveState {
+                    topology: PrimitiveTopology::TriangleList,
+                    strip_index_format: None,
+                    front_face: FrontFace::Ccw,
+                    cull_mode: Some(Face::Back),
+                    unclipped_depth: false,
+                    polygon_mode: PolygonMode::Fill,
+                    conservative: false,
+                },
+                depth_stencil: Some(DepthStencilState {
+                    format: Texture::DEPTH_FORMAT,
+                    depth_write_enabled: true,
+                    depth_compare: CompareFunction::Less,
+                    stencil: StencilState::default(),
+                    bias: DepthBiasState::default(),
+                }),
+                multisample: MultisampleState {
+                    count: 1,
+                    mask: !0,
+                    alpha_to_coverage_enabled: false,
+                },
+                multiview: None,
+                cache: None,
+            });
+
+            debug_pipeline
+        };
 
         let depth_texture = Texture::create_depth_texture(&device, &config, "Depth Texture");
 
@@ -478,6 +551,7 @@ impl GraphicsState {
             queue,
             config,
             render_pipeline,
+            debug_pipeline,
             camera,
             camera_buffer,
             camera_bind_group,
