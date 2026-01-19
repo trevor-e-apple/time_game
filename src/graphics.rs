@@ -54,6 +54,34 @@ impl Vertex2 {
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct DebugVertex2 {
+    pub position: [f32; 2],
+    pub color: [f32; 3],
+}
+
+impl DebugVertex2 {
+    pub fn buffer_layout() -> VertexBufferLayout<'static> {
+        VertexBufferLayout {
+            array_stride: std::mem::size_of::<Vertex2>() as wgpu::BufferAddress,
+            step_mode: VertexStepMode::Vertex,
+            attributes: &[
+                VertexAttribute {
+                    offset: 0,
+                    shader_location: 0,
+                    format: VertexFormat::Float32x2,
+                },
+                VertexAttribute {
+                    offset: std::mem::size_of::<[f32; 2]>() as wgpu::BufferAddress,
+                    shader_location: 1,
+                    format: VertexFormat::Float32x3,
+                },
+            ],
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Vertex3 {
     pub position: [f32; 3],
     pub tex_coords: [f32; 2],
@@ -95,6 +123,23 @@ pub const TRIANGLE_VERTICES: &[Vertex3] = &[
         tex_coords: [0.0, 0.0],
     },
 ];
+
+const DEBUG_TRIANGLE_VERTICES: &[DebugVertex2] = &[
+    DebugVertex2 {
+        position: [0.0, 0.5],
+        color: [0.0, 1.0, 0.0],
+    },
+    DebugVertex2 {
+        position: [-0.5, -0.5],
+        color: [0.0, 1.0, 0.0],
+    },
+    DebugVertex2 {
+        position: [0.5, -0.5],
+        color: [0.0, 1.0, 0.0],
+    },
+];
+
+// TODO: delete triangle indeices
 pub const TRIANGLE_INDICES: &[u32] = &[0, 1, 2];
 
 pub const SQUARE_VERTICES: &[Vertex3] = &[
@@ -116,7 +161,28 @@ pub const SQUARE_VERTICES: &[Vertex3] = &[
     },
 ];
 
+const DEBUG_SQUARE_VERTICES: &[DebugVertex2] = &[
+    DebugVertex2 {
+        position: [-0.5, 0.5],
+        color: [1.0, 0.0, 0.0],
+    },
+    DebugVertex2 {
+        position: [0.5, -0.5],
+        color: [1.0, 0.0, 0.0],
+    },
+    DebugVertex2 {
+        position: [0.5, 0.5],
+        color: [1.0, 0.0, 0.0],
+    },
+    DebugVertex2 {
+        position: [-0.5, -0.5],
+        color: [1.0, 0.0, 0.0],
+    },
+];
+
 pub const SQUARE_INDICES: &[u32] = &[0, 1, 2, 0, 3, 1];
+
+const MAX_DEBUG_SQUARES: usize = 1000;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -207,6 +273,21 @@ struct Model {
     max_instances: usize,
 }
 
+struct DebugSquare {
+    vertex_buffer: wgpu::Buffer,
+    index_buffer: wgpu::Buffer,
+    instance_buffer: wgpu::Buffer,
+    num_instances: u32,
+}
+
+struct DebugTriangle {
+    vertex_buffer: wgpu::Buffer,
+    instance_buffer: wgpu::Buffer,
+    num_instances: u32,
+}
+
+const MAX_DEBUG_TRIANGLES: usize = 1000;
+
 ///
 fn load_shader(device: &wgpu::Device, shader_file_name: &str, shader_label: &str) -> ShaderModule {
     let shader_source_dir = env::var("SHADER_SOURCE_DIR").unwrap();
@@ -231,6 +312,8 @@ pub struct GraphicsState {
     config: SurfaceConfiguration,
     render_pipeline: RenderPipeline,
     debug_pipeline: RenderPipeline,
+    debug_triangle: DebugTriangle,
+    debug_square: DebugSquare,
     models: Vec<Model>,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: BindGroup,
@@ -541,6 +624,51 @@ impl GraphicsState {
             debug_pipeline
         };
 
+        let debug_square = {
+            let vertex_buffer = device.create_buffer_init(&BufferInitDescriptor {
+                label: Some("Square Vertex Buffer"),
+                contents: bytemuck::cast_slice(DEBUG_SQUARE_VERTICES),
+                usage: BufferUsages::VERTEX,
+            });
+            let index_buffer = device.create_buffer_init(&BufferInitDescriptor {
+                label: Some("Square Index Buffer"),
+                contents: bytemuck::cast_slice(SQUARE_INDICES),
+                usage: BufferUsages::INDEX,
+            });
+            let instance_buffer = device.create_buffer(&BufferDescriptor {
+                label: Some("Square Instance Buffer"),
+                size: (mem::size_of::<InstanceRaw>() * MAX_DEBUG_SQUARES) as wgpu::BufferAddress,
+                usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+
+            DebugSquare {
+                vertex_buffer,
+                index_buffer,
+                instance_buffer,
+                num_instances: 0,
+            }
+        };
+        let debug_triangle = {
+            let vertex_buffer = device.create_buffer_init(&BufferInitDescriptor {
+                label: Some("Triangle Vertex Buffer"),
+                contents: bytemuck::cast_slice(DEBUG_TRIANGLE_VERTICES),
+                usage: BufferUsages::VERTEX,
+            });
+            let instance_buffer = device.create_buffer(&BufferDescriptor {
+                label: Some("Triangle Instance Buffer"),
+                size: (mem::size_of::<InstanceRaw>() * MAX_DEBUG_TRIANGLES) as wgpu::BufferAddress,
+                usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+
+            DebugTriangle {
+                vertex_buffer,
+                instance_buffer,
+                num_instances: 0,
+            }
+        };
+
         let depth_texture = Texture::create_depth_texture(&device, &config, "Depth Texture");
 
         let models = vec![];
@@ -552,6 +680,8 @@ impl GraphicsState {
             config,
             render_pipeline,
             debug_pipeline,
+            debug_square,
+            debug_triangle,
             camera,
             camera_buffer,
             camera_bind_group,
@@ -635,6 +765,8 @@ impl GraphicsState {
                 render_pass.set_vertex_buffer(1, model.instance_buffer.slice(..));
                 render_pass.draw_indexed(0..model.num_indices, 0, 0..model.num_instances);
             }
+
+            render_pass.set_pipeline(&self.debug_pipeline);
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
@@ -648,6 +780,7 @@ impl GraphicsState {
         indices: &[u32],
         max_instances: usize,
     ) -> usize {
+        // TODO: Have a way to provide labels
         let vertex_buffer = self.device.create_buffer_init(&BufferInitDescriptor {
             label: Some("Vertex Buffer"),
             contents: bytemuck::cast_slice(vertices),
@@ -695,5 +828,14 @@ impl GraphicsState {
             );
             model.num_instances += 1;
         }
+    }
+
+    pub fn add_debug_square(&mut self, instance: Instance) {
+        self.queue.write_buffer(
+            &self.debug_square.vertex_buffer,
+            (self.debug_square.num_instances as usize * mem::size_of::<InstanceRaw>())
+                as wgpu::BufferAddress,
+            bytemuck::cast_slice(&[instance.to_raw()]),
+        );
     }
 }
