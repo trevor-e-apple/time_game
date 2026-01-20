@@ -828,15 +828,15 @@ impl GraphicsState {
                 render_pass.set_pipeline(&self.debug_pipeline);
 
                 // Draw debug squares
-                // {
-                //     render_pass.set_vertex_buffer(0, self.debug_square.vertex_buffer.slice(..));
-                //     render_pass.set_index_buffer(
-                //         self.debug_square.index_buffer.slice(..),
-                //         IndexFormat::Uint32,
-                //     );
-                //     render_pass.set_vertex_buffer(1, self.debug_square.instance_buffer.slice(..));
-                //     render_pass.draw_indexed(0..6, 0, 0..self.debug_square.num_instances);
-                // }
+                {
+                    render_pass.set_vertex_buffer(0, self.debug_square.vertex_buffer.slice(..));
+                    render_pass.set_index_buffer(
+                        self.debug_square.index_buffer.slice(..),
+                        IndexFormat::Uint32,
+                    );
+                    render_pass.set_vertex_buffer(1, self.debug_square.instance_buffer.slice(..));
+                    render_pass.draw_indexed(0..6, 0, 0..self.debug_square.num_instances);
+                }
 
                 // Draw debug triangle
                 {

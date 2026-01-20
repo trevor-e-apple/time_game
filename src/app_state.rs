@@ -38,7 +38,7 @@ impl AppState {
         );
 
         graphics_state.add_debug_square(Instance2D {
-            position: Vector2::new(2.0, 0.0),
+            position: Vector2::new(-0.25, -0.25),
             scale: Vector2::new(0.5, 0.5),
             rotation: cgmath::Rad(3.14 / 4.0),
         });
