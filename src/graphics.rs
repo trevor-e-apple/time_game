@@ -810,18 +810,18 @@ impl GraphicsState {
             });
 
             // Draw models
-            // {
-            //     render_pass.set_pipeline(&self.render_pipeline);
-            //     render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
-            //     render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
+            {
+                render_pass.set_pipeline(&self.render_pipeline);
+                render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
+                render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
 
-            //     for model in &self.models {
-            //         render_pass.set_vertex_buffer(0, model.vertex_buffer.slice(..));
-            //         render_pass.set_index_buffer(model.index_buffer.slice(..), IndexFormat::Uint32);
-            //         render_pass.set_vertex_buffer(1, model.instance_buffer.slice(..));
-            //         render_pass.draw_indexed(0..model.num_indices, 0, 0..model.num_instances);
-            //     }
-            // }
+                for model in &self.models {
+                    render_pass.set_vertex_buffer(0, model.vertex_buffer.slice(..));
+                    render_pass.set_index_buffer(model.index_buffer.slice(..), IndexFormat::Uint32);
+                    render_pass.set_vertex_buffer(1, model.instance_buffer.slice(..));
+                    render_pass.draw_indexed(0..model.num_indices, 0, 0..model.num_instances);
+                }
+            }
 
             // Begin debug rendering
             {
