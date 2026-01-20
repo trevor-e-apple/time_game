@@ -37,6 +37,12 @@ impl AppState {
             },
         );
 
+        graphics_state.add_debug_square(Instance {
+            position: Vector3::new(2.0, 0.0, 0.0),
+            scale: Vector3::new(0.5, 0.5, 1.0),
+            rotation: Quaternion::new(1.0, 0.0, 0.0, 0.0),
+        });
+
         Ok(Self {
             window,
             graphics_state,

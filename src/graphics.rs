@@ -3,7 +3,7 @@ use std::{env, fs::File, io::Read, mem, path::Path, sync::Arc};
 use crate::{camera::Camera, texture::Texture};
 
 use anyhow::Context;
-use cgmath::{Matrix4, Point3, Quaternion, SquareMatrix, Vector3};
+use cgmath::{Matrix3, Matrix4, Point3, Quaternion, SquareMatrix, Vector2, Vector3};
 use image::GenericImageView;
 use wgpu::{
     AddressMode, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor,
@@ -215,9 +215,10 @@ pub struct Instance {
     pub rotation: Quaternion<f32>, // TODO: since we expect this game to be 2D, do we need full Quaternion support?
 }
 
+// TODO: does this need to be public?
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct InstanceRaw {
+struct InstanceRaw {
     model: [[f32; 4]; 4],
 }
 
@@ -258,6 +259,55 @@ impl Instance {
             model: (Matrix4::from_translation(self.position)
                 * Matrix4::from(self.rotation)
                 * Matrix4::from_nonuniform_scale(self.scale.x, self.scale.y, self.scale.z))
+            .into(),
+        }
+    }
+}
+
+pub struct Instance2D {
+    pub position: Vector2<f32>,
+    pub scale: Vector2<f32>,
+    pub rotation: cgmath::Rad<f32>,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+struct Instance2DRaw {
+    model: [[f32; 3]; 3],
+}
+
+impl Instance2DRaw {
+    pub fn buffer_layout() -> wgpu::VertexBufferLayout<'static> {
+        wgpu::VertexBufferLayout {
+            array_stride: mem::size_of::<Instance2DRaw>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Instance,
+            attributes: &[
+                wgpu::VertexAttribute {
+                    offset: 0,
+                    shader_location: 2,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+                wgpu::VertexAttribute {
+                    offset: mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
+                    shader_location: 3,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+                wgpu::VertexAttribute {
+                    offset: mem::size_of::<[f32; 6]>() as wgpu::BufferAddress,
+                    shader_location: 4,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+            ],
+        }
+    }
+}
+
+impl Instance2D {
+    pub fn to_raw(&self) -> Instance2DRaw {
+        Instance2DRaw {
+            model: (Matrix3::from_translation(self.position)
+                * Matrix3::from_angle_z(self.rotation)
+                * Matrix3::from_nonuniform_scale(self.scale.x, self.scale.y))
             .into(),
         }
     }
@@ -637,7 +687,7 @@ impl GraphicsState {
             });
             let instance_buffer = device.create_buffer(&BufferDescriptor {
                 label: Some("Square Instance Buffer"),
-                size: (mem::size_of::<InstanceRaw>() * MAX_DEBUG_SQUARES) as wgpu::BufferAddress,
+                size: (mem::size_of::<Instance2DRaw>() * MAX_DEBUG_SQUARES) as wgpu::BufferAddress,
                 usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             });
@@ -657,7 +707,8 @@ impl GraphicsState {
             });
             let instance_buffer = device.create_buffer(&BufferDescriptor {
                 label: Some("Triangle Instance Buffer"),
-                size: (mem::size_of::<InstanceRaw>() * MAX_DEBUG_TRIANGLES) as wgpu::BufferAddress,
+                size: (mem::size_of::<Instance2DRaw>() * MAX_DEBUG_TRIANGLES)
+                    as wgpu::BufferAddress,
                 usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             });
@@ -767,6 +818,17 @@ impl GraphicsState {
             }
 
             render_pass.set_pipeline(&self.debug_pipeline);
+
+            // Draw debug squares
+            {
+                render_pass.set_vertex_buffer(0, self.debug_square.vertex_buffer.slice(..));
+                render_pass.set_index_buffer(
+                    self.debug_square.index_buffer.slice(..),
+                    IndexFormat::Uint32,
+                );
+                render_pass.set_vertex_buffer(1, self.debug_square.instance_buffer.slice(..));
+                render_pass.draw_indexed(0..6, 0, 0..self.debug_square.num_instances);
+            }
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
@@ -830,10 +892,19 @@ impl GraphicsState {
         }
     }
 
-    pub fn add_debug_square(&mut self, instance: Instance) {
+    pub fn add_debug_square(&mut self, instance: Instance2D) {
         self.queue.write_buffer(
-            &self.debug_square.vertex_buffer,
+            &self.debug_square.instance_buffer,
             (self.debug_square.num_instances as usize * mem::size_of::<InstanceRaw>())
+                as wgpu::BufferAddress,
+            bytemuck::cast_slice(&[instance.to_raw()]),
+        );
+    }
+
+    pub fn add_debug_triangle(&mut self, instance: Instance2D) {
+        self.queue.write_buffer(
+            &self.debug_triangle.instance_buffer,
+            (self.debug_triangle.num_instances as usize * mem::size_of::<InstanceRaw>())
                 as wgpu::BufferAddress,
             bytemuck::cast_slice(&[instance.to_raw()]),
         );
