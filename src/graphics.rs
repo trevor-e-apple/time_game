@@ -62,7 +62,7 @@ pub struct DebugVertex2 {
 impl DebugVertex2 {
     pub fn buffer_layout() -> VertexBufferLayout<'static> {
         VertexBufferLayout {
-            array_stride: std::mem::size_of::<Vertex2>() as wgpu::BufferAddress,
+            array_stride: std::mem::size_of::<DebugVertex2>() as wgpu::BufferAddress,
             step_mode: VertexStepMode::Vertex,
             attributes: &[
                 VertexAttribute {
@@ -303,7 +303,7 @@ impl Instance2DRaw {
 }
 
 impl Instance2D {
-    pub fn to_raw(&self) -> Instance2DRaw {
+    fn to_raw(&self) -> Instance2DRaw {
         Instance2DRaw {
             model: (Matrix3::from_translation(self.position)
                 * Matrix3::from_angle_z(self.rotation)
@@ -634,7 +634,10 @@ impl GraphicsState {
                     module: &shader,
                     entry_point: Some("vs_main"),
                     compilation_options: PipelineCompilationOptions::default(),
-                    buffers: &[Vertex2::buffer_layout()],
+                    buffers: &[
+                        DebugVertex2::buffer_layout(),
+                        Instance2DRaw::buffer_layout(),
+                    ],
                 },
                 fragment: Some(FragmentState {
                     module: &shader,
@@ -806,28 +809,41 @@ impl GraphicsState {
                 timestamp_writes: None,
             });
 
-            render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
-            render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
+            // Draw models
+            // {
+            //     render_pass.set_pipeline(&self.render_pipeline);
+            //     render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
+            //     render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
 
-            for model in &self.models {
-                render_pass.set_vertex_buffer(0, model.vertex_buffer.slice(..));
-                render_pass.set_index_buffer(model.index_buffer.slice(..), IndexFormat::Uint32);
-                render_pass.set_vertex_buffer(1, model.instance_buffer.slice(..));
-                render_pass.draw_indexed(0..model.num_indices, 0, 0..model.num_instances);
-            }
+            //     for model in &self.models {
+            //         render_pass.set_vertex_buffer(0, model.vertex_buffer.slice(..));
+            //         render_pass.set_index_buffer(model.index_buffer.slice(..), IndexFormat::Uint32);
+            //         render_pass.set_vertex_buffer(1, model.instance_buffer.slice(..));
+            //         render_pass.draw_indexed(0..model.num_indices, 0, 0..model.num_instances);
+            //     }
+            // }
 
-            render_pass.set_pipeline(&self.debug_pipeline);
-
-            // Draw debug squares
+            // Begin debug rendering
             {
-                render_pass.set_vertex_buffer(0, self.debug_square.vertex_buffer.slice(..));
-                render_pass.set_index_buffer(
-                    self.debug_square.index_buffer.slice(..),
-                    IndexFormat::Uint32,
-                );
-                render_pass.set_vertex_buffer(1, self.debug_square.instance_buffer.slice(..));
-                render_pass.draw_indexed(0..6, 0, 0..self.debug_square.num_instances);
+                render_pass.set_pipeline(&self.debug_pipeline);
+
+                // Draw debug squares
+                // {
+                //     render_pass.set_vertex_buffer(0, self.debug_square.vertex_buffer.slice(..));
+                //     render_pass.set_index_buffer(
+                //         self.debug_square.index_buffer.slice(..),
+                //         IndexFormat::Uint32,
+                //     );
+                //     render_pass.set_vertex_buffer(1, self.debug_square.instance_buffer.slice(..));
+                //     render_pass.draw_indexed(0..6, 0, 0..self.debug_square.num_instances);
+                // }
+
+                // Draw debug triangle
+                {
+                    render_pass.set_vertex_buffer(0, self.debug_triangle.vertex_buffer.slice(..));
+                    render_pass.set_vertex_buffer(1, self.debug_triangle.instance_buffer.slice(..));
+                    render_pass.draw(0..3, 0..self.debug_triangle.num_instances);
+                }
             }
         }
 
@@ -895,18 +911,20 @@ impl GraphicsState {
     pub fn add_debug_square(&mut self, instance: Instance2D) {
         self.queue.write_buffer(
             &self.debug_square.instance_buffer,
-            (self.debug_square.num_instances as usize * mem::size_of::<InstanceRaw>())
+            (self.debug_square.num_instances as usize * mem::size_of::<Instance2DRaw>())
                 as wgpu::BufferAddress,
             bytemuck::cast_slice(&[instance.to_raw()]),
         );
+        self.debug_square.num_instances += 1;
     }
 
     pub fn add_debug_triangle(&mut self, instance: Instance2D) {
         self.queue.write_buffer(
             &self.debug_triangle.instance_buffer,
-            (self.debug_triangle.num_instances as usize * mem::size_of::<InstanceRaw>())
+            (self.debug_triangle.num_instances as usize * mem::size_of::<Instance2DRaw>())
                 as wgpu::BufferAddress,
             bytemuck::cast_slice(&[instance.to_raw()]),
         );
+        self.debug_triangle.num_instances += 1;
     }
 }

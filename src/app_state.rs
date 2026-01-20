@@ -3,12 +3,12 @@ use std::sync::Arc;
 use crate::{
     camera::CameraController,
     graphics::{
-        GraphicsState, Instance, SQUARE_INDICES, SQUARE_VERTICES, TRIANGLE_INDICES,
+        GraphicsState, Instance, Instance2D, SQUARE_INDICES, SQUARE_VERTICES, TRIANGLE_INDICES,
         TRIANGLE_VERTICES,
     },
 };
 
-use cgmath::{Quaternion, Vector3};
+use cgmath::{Quaternion, Vector2, Vector3};
 use winit::window::Window;
 
 pub struct AppState {
@@ -37,10 +37,15 @@ impl AppState {
             },
         );
 
-        graphics_state.add_debug_square(Instance {
-            position: Vector3::new(2.0, 0.0, 0.0),
-            scale: Vector3::new(0.5, 0.5, 1.0),
-            rotation: Quaternion::new(1.0, 0.0, 0.0, 0.0),
+        graphics_state.add_debug_square(Instance2D {
+            position: Vector2::new(2.0, 0.0),
+            scale: Vector2::new(0.5, 0.5),
+            rotation: cgmath::Rad(3.14 / 4.0),
+        });
+        graphics_state.add_debug_triangle(Instance2D {
+            position: Vector2::new(0.0, 0.0),
+            scale: Vector2::new(1.0, 1.0),
+            rotation: cgmath::Rad(0.0),
         });
 
         Ok(Self {
