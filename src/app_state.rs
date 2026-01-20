@@ -43,9 +43,9 @@ impl AppState {
             rotation: cgmath::Rad(3.14 / 4.0),
         });
         graphics_state.add_debug_triangle(Instance2D {
-            position: Vector2::new(0.0, 0.0),
+            position: Vector2::new(0.25, 0.25),
             scale: Vector2::new(1.0, 1.0),
-            rotation: cgmath::Rad(0.0),
+            rotation: cgmath::Rad(3.14 / 4.0),
         });
 
         Ok(Self {

@@ -27,12 +27,11 @@ fn vs_main(
     );
 
     var out: VertexOutput;
-    out.color = vec3<f32>(1.0, 0.0, 0.0);
+    out.color = model.color;
 
-    // let position = model_matrix * vec3<f32>(model.position.x, model.position.y, 1.0);
-    // let position = vec3<f32>(model.position.x, model.position.y, 1.0);
+    let position = model_matrix * vec3<f32>(model.position.x, model.position.y, 1.0);
 
-    out.clip_position = vec4<f32>(model.position.x, model.position.y, 0.0, 1.0);
+    out.clip_position = vec4<f32>(position.x, position.y, 0.0, 1.0);
     return out;
 }
 
