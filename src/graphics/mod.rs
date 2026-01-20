@@ -472,8 +472,9 @@ impl GraphicsState {
             }],
         });
 
+        // TODO: textures should come from a load function just like shaders do
         let (texture_bind_group_layout, diffuse_bind_group) = {
-            let diffuse_bytes = include_bytes!("../data/happy-tree.png");
+            let diffuse_bytes = include_bytes!("../../data/happy-tree.png");
             let diffuse_image =
                 image::load_from_memory(diffuse_bytes).context("Failed to load texture")?;
             let diffuse_rgba = diffuse_image.to_rgba8();
