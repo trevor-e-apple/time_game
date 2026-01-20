@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::{
     camera::CameraController,
     graphics::{
-        GraphicsState, Instance, Instance2D, SQUARE_INDICES, SQUARE_VERTICES, TRIANGLE_INDICES,
+        GraphicsState, Instance, SQUARE_INDICES, SQUARE_VERTICES, TRIANGLE_INDICES,
         TRIANGLE_VERTICES,
     },
 };
@@ -37,16 +37,16 @@ impl AppState {
             },
         );
 
-        graphics_state.add_debug_square(Instance2D {
-            position: Vector2::new(-0.25, -0.25),
-            scale: Vector2::new(0.5, 0.5),
-            rotation: cgmath::Rad(3.14 / 4.0),
-        });
-        graphics_state.add_debug_triangle(Instance2D {
-            position: Vector2::new(0.25, 0.25),
-            scale: Vector2::new(1.0, 1.0),
-            rotation: cgmath::Rad(3.14 / 4.0),
-        });
+        graphics_state.add_debug_square(
+            Vector2::new(-0.25, -0.25),
+            Vector2::new(0.5, 0.5),
+            3.14 / 4.0,
+        );
+        graphics_state.add_debug_triangle(
+            Vector2::new(0.25, 0.25),
+            Vector2::new(1.0, 1.0),
+            3.14 / 4.0,
+        );
 
         Ok(Self {
             window,
