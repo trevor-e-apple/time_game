@@ -124,14 +124,14 @@ impl Instance {
     }
 }
 
-pub struct DebugSquare {
+pub struct Squares {
     pub vertex_buffer: wgpu::Buffer,
     pub index_buffer: wgpu::Buffer,
     pub instance_buffer: wgpu::Buffer,
     pub num_instances: u32,
 }
 
-pub struct DebugTriangle {
+pub struct Triangles {
     pub vertex_buffer: wgpu::Buffer,
     pub instance_buffer: wgpu::Buffer,
     pub num_instances: u32,
@@ -139,13 +139,13 @@ pub struct DebugTriangle {
 
 pub struct DebugState {
     pipeline: RenderPipeline,
-    debug_triangle: DebugTriangle,
-    debug_square: DebugSquare,
+    triangles: Triangles,
+    squares: Squares,
 }
 
 impl DebugState {
-    const MAX_DEBUG_SQUARES: usize = 1000;
-    const MAX_DEBUG_TRIANGLES: usize = 1000;
+    const MAX_SQUARES: usize = 1000;
+    const MAX_TRIANGLES: usize = 1000;
 
     pub fn new(device: &Device, config: &SurfaceConfiguration) -> Self {
         let pipeline = {
@@ -203,7 +203,7 @@ impl DebugState {
             pipeline
         };
 
-        let debug_square = {
+        let squares = {
             let vertex_buffer = device.create_buffer_init(&BufferInitDescriptor {
                 label: Some("Square Vertex Buffer"),
                 contents: bytemuck::cast_slice(SQUARE_VERTICES),
@@ -216,20 +216,19 @@ impl DebugState {
             });
             let instance_buffer = device.create_buffer(&BufferDescriptor {
                 label: Some("Square Instance Buffer"),
-                size: (mem::size_of::<InstanceRaw>() * Self::MAX_DEBUG_SQUARES)
-                    as wgpu::BufferAddress,
+                size: (mem::size_of::<InstanceRaw>() * Self::MAX_SQUARES) as wgpu::BufferAddress,
                 usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             });
 
-            DebugSquare {
+            Squares {
                 vertex_buffer,
                 index_buffer,
                 instance_buffer,
                 num_instances: 0,
             }
         };
-        let debug_triangle = {
+        let triangles = {
             let vertex_buffer = device.create_buffer_init(&BufferInitDescriptor {
                 label: Some("Triangle Vertex Buffer"),
                 contents: bytemuck::cast_slice(TRIANGLE_VERTICES),
@@ -237,13 +236,12 @@ impl DebugState {
             });
             let instance_buffer = device.create_buffer(&BufferDescriptor {
                 label: Some("Triangle Instance Buffer"),
-                size: (mem::size_of::<InstanceRaw>() * Self::MAX_DEBUG_TRIANGLES)
-                    as wgpu::BufferAddress,
+                size: (mem::size_of::<InstanceRaw>() * Self::MAX_TRIANGLES) as wgpu::BufferAddress,
                 usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             });
 
-            DebugTriangle {
+            Triangles {
                 vertex_buffer,
                 instance_buffer,
                 num_instances: 0,
@@ -252,8 +250,8 @@ impl DebugState {
 
         Self {
             pipeline,
-            debug_triangle,
-            debug_square,
+            triangles,
+            squares,
         }
     }
 
@@ -262,20 +260,17 @@ impl DebugState {
 
         // Draw debug squares
         {
-            render_pass.set_vertex_buffer(0, self.debug_square.vertex_buffer.slice(..));
-            render_pass.set_index_buffer(
-                self.debug_square.index_buffer.slice(..),
-                IndexFormat::Uint32,
-            );
-            render_pass.set_vertex_buffer(1, self.debug_square.instance_buffer.slice(..));
-            render_pass.draw_indexed(0..6, 0, 0..self.debug_square.num_instances);
+            render_pass.set_vertex_buffer(0, self.squares.vertex_buffer.slice(..));
+            render_pass.set_index_buffer(self.squares.index_buffer.slice(..), IndexFormat::Uint32);
+            render_pass.set_vertex_buffer(1, self.squares.instance_buffer.slice(..));
+            render_pass.draw_indexed(0..6, 0, 0..self.squares.num_instances);
         }
 
         // Draw debug triangle
         {
-            render_pass.set_vertex_buffer(0, self.debug_triangle.vertex_buffer.slice(..));
-            render_pass.set_vertex_buffer(1, self.debug_triangle.instance_buffer.slice(..));
-            render_pass.draw(0..3, 0..self.debug_triangle.num_instances);
+            render_pass.set_vertex_buffer(0, self.triangles.vertex_buffer.slice(..));
+            render_pass.set_vertex_buffer(1, self.triangles.instance_buffer.slice(..));
+            render_pass.draw(0..3, 0..self.triangles.num_instances);
         }
     }
 
@@ -292,12 +287,12 @@ impl DebugState {
             rotation: cgmath::Rad(rotation),
         };
         queue.write_buffer(
-            &self.debug_square.instance_buffer,
-            (self.debug_square.num_instances as usize * mem::size_of::<InstanceRaw>())
+            &self.squares.instance_buffer,
+            (self.squares.num_instances as usize * mem::size_of::<InstanceRaw>())
                 as wgpu::BufferAddress,
             bytemuck::cast_slice(&[instance.to_raw()]),
         );
-        self.debug_square.num_instances += 1;
+        self.squares.num_instances += 1;
     }
 
     pub fn add_triangle(
@@ -313,11 +308,11 @@ impl DebugState {
             rotation: cgmath::Rad(rotation),
         };
         queue.write_buffer(
-            &self.debug_triangle.instance_buffer,
-            (self.debug_triangle.num_instances as usize * mem::size_of::<InstanceRaw>())
+            &self.triangles.instance_buffer,
+            (self.triangles.num_instances as usize * mem::size_of::<InstanceRaw>())
                 as wgpu::BufferAddress,
             bytemuck::cast_slice(&[instance.to_raw()]),
         );
-        self.debug_triangle.num_instances += 1;
+        self.triangles.num_instances += 1;
     }
 }
