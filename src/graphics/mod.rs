@@ -636,9 +636,15 @@ impl GraphicsState {
         }
     }
 
-    pub fn add_debug_square(&mut self, position: Vector2<f32>, scale: Vector2<f32>, rotation: f32) {
+    pub fn add_debug_square(
+        &mut self,
+        position: Vector2<f32>,
+        scale: Vector2<f32>,
+        rotation: f32,
+        color: (f32, f32, f32),
+    ) {
         self.debug_state
-            .add_square(&self.queue, position, scale, rotation);
+            .add_square(&self.queue, position, scale, rotation, color);
     }
 
     pub fn add_debug_triangle(
@@ -646,8 +652,9 @@ impl GraphicsState {
         position: Vector2<f32>,
         scale: Vector2<f32>,
         rotation: f32,
+        color: (f32, f32, f32),
     ) {
         self.debug_state
-            .add_triangle(&self.queue, position, scale, rotation);
+            .add_triangle(&self.queue, position, scale, rotation, color);
     }
 }

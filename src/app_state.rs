@@ -41,11 +41,13 @@ impl AppState {
             Vector2::new(-0.25, -0.25),
             Vector2::new(0.5, 0.5),
             3.14 / 4.0,
+            (1.0, 0.0, 1.0),
         );
         graphics_state.add_debug_triangle(
             Vector2::new(0.25, 0.25),
             Vector2::new(1.0, 1.0),
             3.14 / 4.0,
+            (0.0, 1.0, 1.0),
         );
 
         Ok(Self {

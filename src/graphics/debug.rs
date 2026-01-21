@@ -1,6 +1,6 @@
 use std::mem;
 
-use cgmath::{Matrix3, Vector2};
+use cgmath::{Matrix3, Vector2, Vector3};
 use wgpu::{
     BlendState, BufferDescriptor, BufferUsages, ColorTargetState, ColorWrites, CompareFunction,
     DepthBiasState, DepthStencilState, Device, Face, FragmentState, FrontFace, IndexFormat,
@@ -17,7 +17,6 @@ use crate::graphics::{common_models::SQUARE_INDICES, shader::load_shader, textur
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 struct Vertex2 {
     position: [f32; 2],
-    color: [f32; 3],
 }
 
 impl Vertex2 {
@@ -25,18 +24,11 @@ impl Vertex2 {
         VertexBufferLayout {
             array_stride: std::mem::size_of::<Vertex2>() as wgpu::BufferAddress,
             step_mode: VertexStepMode::Vertex,
-            attributes: &[
-                VertexAttribute {
-                    offset: 0,
-                    shader_location: 0,
-                    format: VertexFormat::Float32x2,
-                },
-                VertexAttribute {
-                    offset: std::mem::size_of::<[f32; 2]>() as wgpu::BufferAddress,
-                    shader_location: 1,
-                    format: VertexFormat::Float32x3,
-                },
-            ],
+            attributes: &[VertexAttribute {
+                offset: 0,
+                shader_location: 0,
+                format: VertexFormat::Float32x2,
+            }],
         }
     }
 }
@@ -44,51 +36,46 @@ impl Vertex2 {
 const TRIANGLE_VERTICES: &[Vertex2] = &[
     Vertex2 {
         position: [0.0, 0.5],
-        color: [0.0, 1.0, 0.0],
     },
     Vertex2 {
         position: [-0.5, -0.5],
-        color: [0.0, 1.0, 0.0],
     },
     Vertex2 {
         position: [0.5, -0.5],
-        color: [0.0, 1.0, 0.0],
     },
 ];
 
 const SQUARE_VERTICES: &[Vertex2] = &[
     Vertex2 {
         position: [-0.5, 0.5],
-        color: [1.0, 0.0, 0.0],
     },
     Vertex2 {
         position: [0.5, -0.5],
-        color: [1.0, 0.0, 0.0],
     },
     Vertex2 {
         position: [0.5, 0.5],
-        color: [1.0, 0.0, 0.0],
     },
     Vertex2 {
         position: [-0.5, -0.5],
-        color: [1.0, 0.0, 0.0],
     },
 ];
 
-pub struct Instance {
-    pub position: Vector2<f32>,
-    pub scale: Vector2<f32>,
-    pub rotation: cgmath::Rad<f32>,
+struct Instance {
+    position: Vector2<f32>,
+    scale: Vector2<f32>,
+    rotation: cgmath::Rad<f32>,
+    color: (f32, f32, f32), // TODO: replace with a codified color struct ?
 }
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct InstanceRaw {
+struct InstanceRaw {
     model: [[f32; 3]; 3],
+    color: [f32; 3],
 }
 
 impl InstanceRaw {
-    pub fn buffer_layout() -> wgpu::VertexBufferLayout<'static> {
+    fn buffer_layout() -> wgpu::VertexBufferLayout<'static> {
         wgpu::VertexBufferLayout {
             array_stride: mem::size_of::<InstanceRaw>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Instance,
@@ -108,33 +95,39 @@ impl InstanceRaw {
                     shader_location: 4,
                     format: wgpu::VertexFormat::Float32x3,
                 },
+                wgpu::VertexAttribute {
+                    offset: mem::size_of::<[f32; 9]>() as wgpu::BufferAddress,
+                    shader_location: 5,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
             ],
         }
     }
 }
 
 impl Instance {
-    pub fn to_raw(&self) -> InstanceRaw {
+    fn to_raw(&self) -> InstanceRaw {
         InstanceRaw {
             model: (Matrix3::from_translation(self.position)
                 * Matrix3::from_angle_z(self.rotation)
                 * Matrix3::from_nonuniform_scale(self.scale.x, self.scale.y))
             .into(),
+            color: [self.color.0, self.color.1, self.color.2],
         }
     }
 }
 
-pub struct Squares {
-    pub vertex_buffer: wgpu::Buffer,
-    pub index_buffer: wgpu::Buffer,
-    pub instance_buffer: wgpu::Buffer,
-    pub num_instances: u32,
+struct Squares {
+    vertex_buffer: wgpu::Buffer,
+    index_buffer: wgpu::Buffer,
+    instance_buffer: wgpu::Buffer,
+    num_instances: u32,
 }
 
-pub struct Triangles {
-    pub vertex_buffer: wgpu::Buffer,
-    pub instance_buffer: wgpu::Buffer,
-    pub num_instances: u32,
+struct Triangles {
+    vertex_buffer: wgpu::Buffer,
+    instance_buffer: wgpu::Buffer,
+    num_instances: u32,
 }
 
 pub struct DebugState {
@@ -280,11 +273,13 @@ impl DebugState {
         position: Vector2<f32>,
         scale: Vector2<f32>,
         rotation: f32,
+        color: (f32, f32, f32),
     ) {
         let instance = Instance {
             position,
             scale,
             rotation: cgmath::Rad(rotation),
+            color,
         };
         queue.write_buffer(
             &self.squares.instance_buffer,
@@ -301,11 +296,13 @@ impl DebugState {
         position: Vector2<f32>,
         scale: Vector2<f32>,
         rotation: f32,
+        color: (f32, f32, f32),
     ) {
         let instance = Instance {
             position,
             scale,
             rotation: cgmath::Rad(rotation),
+            color,
         };
         queue.write_buffer(
             &self.triangles.instance_buffer,

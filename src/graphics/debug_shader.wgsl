@@ -2,13 +2,13 @@
 
 struct VertexInput {
     @location(0) position: vec2<f32>,
-    @location(1) color: vec3<f32>,
 };
 
 struct InstanceInput {
     @location(2) model_matrix_0: vec3<f32>,
     @location(3) model_matrix_1: vec3<f32>,
     @location(4) model_matrix_2: vec3<f32>,
+    @location(5) color: vec3<f32>,
 }
 
 struct VertexOutput {
@@ -27,7 +27,7 @@ fn vs_main(
     );
 
     var out: VertexOutput;
-    out.color = model.color;
+    out.color = instance.color;
 
     let position = model_matrix * vec3<f32>(model.position.x, model.position.y, 1.0);
 
