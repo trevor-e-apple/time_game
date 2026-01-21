@@ -1,15 +1,9 @@
+pub mod common_models; // TODO: probably don't reexport this
 mod debug;
+mod shader;
+mod texture;
 
-use std::{env, fs::File, io::Read, mem, path::Path, sync::Arc};
-
-use crate::{
-    camera::Camera,
-    graphics::debug::{
-        DEBUG_SQUARE_VERTICES, DEBUG_TRIANGLE_VERTICES, DebugSquare, DebugTriangle, DebugVertex2,
-        Instance2D,
-    },
-    texture::Texture,
-};
+use std::{mem, sync::Arc};
 
 use anyhow::Context;
 use cgmath::{Matrix4, Point3, Quaternion, SquareMatrix, Vector2, Vector3};
@@ -23,15 +17,16 @@ use wgpu::{
     PipelineLayoutDescriptor, PolygonMode, PowerPreference, PrimitiveState, PrimitiveTopology,
     RenderPassColorAttachment, RenderPassDepthStencilAttachment, RenderPassDescriptor,
     RenderPipeline, RenderPipelineDescriptor, RequestAdapterOptions, SamplerBindingType,
-    ShaderModule, ShaderModuleDescriptor, ShaderSource, ShaderStages, StencilState, StoreOp,
-    Surface, SurfaceConfiguration, TexelCopyBufferLayout, TexelCopyTextureInfo, TextureAspect,
-    TextureDimension, TextureFormat, TextureSampleType, TextureUsages, TextureViewDescriptor,
-    TextureViewDimension, VertexAttribute, VertexBufferLayout, VertexFormat, VertexState,
-    VertexStepMode,
+    ShaderStages, StencilState, StoreOp, Surface, SurfaceConfiguration, TexelCopyBufferLayout,
+    TexelCopyTextureInfo, TextureAspect, TextureDimension, TextureFormat, TextureSampleType,
+    TextureUsages, TextureViewDescriptor, TextureViewDimension, VertexAttribute,
+    VertexBufferLayout, VertexFormat, VertexState, VertexStepMode,
     util::{BufferInitDescriptor, DeviceExt},
     wgt::{SamplerDescriptor, TextureDescriptor},
 };
 use winit::window::Window;
+
+use crate::{camera::Camera, graphics::debug::DebugState, graphics::shader::load_shader};
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -89,7 +84,6 @@ impl Vertex3 {
     }
 }
 
-// TODO: delete triangle vertices? or move to debug-exclusive code?
 pub const TRIANGLE_VERTICES: &[Vertex3] = &[
     Vertex3 {
         position: [0.0, 0.5, 0.0],
@@ -104,9 +98,6 @@ pub const TRIANGLE_VERTICES: &[Vertex3] = &[
         tex_coords: [0.0, 0.0],
     },
 ];
-
-// TODO: delete triangle indeices
-pub const TRIANGLE_INDICES: &[u32] = &[0, 1, 2];
 
 pub const SQUARE_VERTICES: &[Vertex3] = &[
     Vertex3 {
@@ -126,8 +117,6 @@ pub const SQUARE_VERTICES: &[Vertex3] = &[
         tex_coords: [0.0, 1.0],
     },
 ];
-
-pub const SQUARE_INDICES: &[u32] = &[0, 1, 2, 0, 3, 1];
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -219,44 +208,22 @@ struct Model {
     max_instances: usize,
 }
 
-///
-fn load_shader(device: &wgpu::Device, shader_file_name: &str, shader_label: &str) -> ShaderModule {
-    let shader_source_dir = env::var("SHADER_SOURCE_DIR").unwrap();
-    let shader_path = Path::new(&shader_source_dir).join(shader_file_name);
-    let mut shader_source_file = File::open(shader_path).unwrap();
-
-    let mut shader_source_string = String::new();
-    shader_source_file
-        .read_to_string(&mut shader_source_string)
-        .unwrap();
-
-    device.create_shader_module(ShaderModuleDescriptor {
-        label: Some(shader_label),
-        source: ShaderSource::Wgsl(shader_source_string.into()),
-    })
-}
-
 pub struct GraphicsState {
     surface: Surface<'static>,
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: SurfaceConfiguration,
     render_pipeline: RenderPipeline,
-    debug_pipeline: RenderPipeline,
-    debug_triangle: DebugTriangle,
-    debug_square: DebugSquare,
+    debug_state: DebugState,
     models: Vec<Model>,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: BindGroup,
     pub camera: Camera,
-    depth_texture: Texture,
+    depth_texture: texture::Texture,
     diffuse_bind_group: BindGroup,
 }
 
 impl GraphicsState {
-    const MAX_DEBUG_SQUARES: usize = 1000;
-    const MAX_DEBUG_TRIANGLES: usize = 1000;
-
     pub async fn new(window: Arc<Window>) -> anyhow::Result<Self> {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends: wgpu::Backends::PRIMARY,
@@ -486,7 +453,7 @@ impl GraphicsState {
                     conservative: false,
                 },
                 depth_stencil: Some(DepthStencilState {
-                    format: Texture::DEPTH_FORMAT,
+                    format: texture::Texture::DEPTH_FORMAT,
                     depth_write_enabled: true,
                     depth_compare: CompareFunction::Less,
                     stencil: StencilState::default(),
@@ -504,112 +471,10 @@ impl GraphicsState {
             render_pipeline
         };
 
-        let debug_pipeline = {
-            let shader = load_shader(&device, "debug_shader.wgsl", "Debug pipeline shader");
+        let debug_state = DebugState::new(&device, &config);
 
-            let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
-                label: Some("Debug Pipeline Layout"),
-                bind_group_layouts: &[],
-                push_constant_ranges: &[],
-            });
-            let debug_pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
-                label: Some("Debug Pipeline"),
-                layout: Some(&pipeline_layout),
-                vertex: VertexState {
-                    module: &shader,
-                    entry_point: Some("vs_main"),
-                    compilation_options: PipelineCompilationOptions::default(),
-                    buffers: &[
-                        DebugVertex2::buffer_layout(),
-                        debug::Instance2DRaw::buffer_layout(),
-                    ],
-                },
-                fragment: Some(FragmentState {
-                    module: &shader,
-                    entry_point: Some("fs_main"),
-                    compilation_options: PipelineCompilationOptions::default(),
-                    targets: &[Some(ColorTargetState {
-                        format: config.format,
-                        blend: Some(BlendState::REPLACE),
-                        write_mask: ColorWrites::ALL,
-                    })],
-                }),
-                primitive: PrimitiveState {
-                    topology: PrimitiveTopology::TriangleList,
-                    strip_index_format: None,
-                    front_face: FrontFace::Ccw,
-                    cull_mode: Some(Face::Back),
-                    unclipped_depth: false,
-                    polygon_mode: PolygonMode::Fill,
-                    conservative: false,
-                },
-                depth_stencil: Some(DepthStencilState {
-                    format: Texture::DEPTH_FORMAT,
-                    depth_write_enabled: true,
-                    depth_compare: CompareFunction::Less,
-                    stencil: StencilState::default(),
-                    bias: DepthBiasState::default(),
-                }),
-                multisample: MultisampleState {
-                    count: 1,
-                    mask: !0,
-                    alpha_to_coverage_enabled: false,
-                },
-                multiview: None,
-                cache: None,
-            });
-
-            debug_pipeline
-        };
-
-        let debug_square = {
-            let vertex_buffer = device.create_buffer_init(&BufferInitDescriptor {
-                label: Some("Square Vertex Buffer"),
-                contents: bytemuck::cast_slice(DEBUG_SQUARE_VERTICES),
-                usage: BufferUsages::VERTEX,
-            });
-            let index_buffer = device.create_buffer_init(&BufferInitDescriptor {
-                label: Some("Square Index Buffer"),
-                contents: bytemuck::cast_slice(SQUARE_INDICES),
-                usage: BufferUsages::INDEX,
-            });
-            let instance_buffer = device.create_buffer(&BufferDescriptor {
-                label: Some("Square Instance Buffer"),
-                size: (mem::size_of::<debug::Instance2DRaw>() * Self::MAX_DEBUG_SQUARES)
-                    as wgpu::BufferAddress,
-                usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            });
-
-            DebugSquare {
-                vertex_buffer,
-                index_buffer,
-                instance_buffer,
-                num_instances: 0,
-            }
-        };
-        let debug_triangle = {
-            let vertex_buffer = device.create_buffer_init(&BufferInitDescriptor {
-                label: Some("Triangle Vertex Buffer"),
-                contents: bytemuck::cast_slice(DEBUG_TRIANGLE_VERTICES),
-                usage: BufferUsages::VERTEX,
-            });
-            let instance_buffer = device.create_buffer(&BufferDescriptor {
-                label: Some("Triangle Instance Buffer"),
-                size: (mem::size_of::<debug::Instance2DRaw>() * Self::MAX_DEBUG_TRIANGLES)
-                    as wgpu::BufferAddress,
-                usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            });
-
-            DebugTriangle {
-                vertex_buffer,
-                instance_buffer,
-                num_instances: 0,
-            }
-        };
-
-        let depth_texture = Texture::create_depth_texture(&device, &config, "Depth Texture");
+        let depth_texture =
+            texture::Texture::create_depth_texture(&device, &config, "Depth Texture");
 
         let models = vec![];
 
@@ -619,9 +484,7 @@ impl GraphicsState {
             queue,
             config,
             render_pipeline,
-            debug_pipeline,
-            debug_square,
-            debug_triangle,
+            debug_state,
             camera,
             camera_buffer,
             camera_bind_group,
@@ -638,7 +501,7 @@ impl GraphicsState {
         self.surface.configure(&self.device, &self.config);
 
         self.depth_texture =
-            Texture::create_depth_texture(&self.device, &self.config, "Depth Texture");
+            texture::Texture::create_depth_texture(&self.device, &self.config, "Depth Texture");
     }
 
     pub fn update_camera_buffer(&mut self) {
@@ -709,28 +572,7 @@ impl GraphicsState {
                 }
             }
 
-            // Begin debug rendering
-            {
-                render_pass.set_pipeline(&self.debug_pipeline);
-
-                // Draw debug squares
-                {
-                    render_pass.set_vertex_buffer(0, self.debug_square.vertex_buffer.slice(..));
-                    render_pass.set_index_buffer(
-                        self.debug_square.index_buffer.slice(..),
-                        IndexFormat::Uint32,
-                    );
-                    render_pass.set_vertex_buffer(1, self.debug_square.instance_buffer.slice(..));
-                    render_pass.draw_indexed(0..6, 0, 0..self.debug_square.num_instances);
-                }
-
-                // Draw debug triangle
-                {
-                    render_pass.set_vertex_buffer(0, self.debug_triangle.vertex_buffer.slice(..));
-                    render_pass.set_vertex_buffer(1, self.debug_triangle.instance_buffer.slice(..));
-                    render_pass.draw(0..3, 0..self.debug_triangle.num_instances);
-                }
-            }
+            self.debug_state.render(&mut render_pass);
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
@@ -795,18 +637,8 @@ impl GraphicsState {
     }
 
     pub fn add_debug_square(&mut self, position: Vector2<f32>, scale: Vector2<f32>, rotation: f32) {
-        let instance = Instance2D {
-            position,
-            scale,
-            rotation: cgmath::Rad(rotation),
-        };
-        self.queue.write_buffer(
-            &self.debug_square.instance_buffer,
-            (self.debug_square.num_instances as usize * mem::size_of::<debug::Instance2DRaw>())
-                as wgpu::BufferAddress,
-            bytemuck::cast_slice(&[instance.to_raw()]),
-        );
-        self.debug_square.num_instances += 1;
+        self.debug_state
+            .add_square(&self.queue, position, scale, rotation);
     }
 
     pub fn add_debug_triangle(
@@ -815,17 +647,7 @@ impl GraphicsState {
         scale: Vector2<f32>,
         rotation: f32,
     ) {
-        let instance = Instance2D {
-            position,
-            scale,
-            rotation: cgmath::Rad(rotation),
-        };
-        self.queue.write_buffer(
-            &self.debug_triangle.instance_buffer,
-            (self.debug_triangle.num_instances as usize * mem::size_of::<debug::Instance2DRaw>())
-                as wgpu::BufferAddress,
-            bytemuck::cast_slice(&[instance.to_raw()]),
-        );
-        self.debug_triangle.num_instances += 1;
+        self.debug_state
+            .add_triangle(&self.queue, position, scale, rotation);
     }
 }
