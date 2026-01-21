@@ -15,15 +15,15 @@ use crate::graphics::{common_models::SQUARE_INDICES, shader::load_shader, textur
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct DebugVertex2 {
+pub struct Vertex2 {
     pub position: [f32; 2],
     pub color: [f32; 3],
 }
 
-impl DebugVertex2 {
+impl Vertex2 {
     pub fn buffer_layout() -> VertexBufferLayout<'static> {
         VertexBufferLayout {
-            array_stride: std::mem::size_of::<DebugVertex2>() as wgpu::BufferAddress,
+            array_stride: std::mem::size_of::<Vertex2>() as wgpu::BufferAddress,
             step_mode: VertexStepMode::Vertex,
             attributes: &[
                 VertexAttribute {
@@ -41,41 +41,41 @@ impl DebugVertex2 {
     }
 }
 
-pub const DEBUG_TRIANGLE_VERTICES: &[DebugVertex2] = &[
-    DebugVertex2 {
+pub const DEBUG_TRIANGLE_VERTICES: &[Vertex2] = &[
+    Vertex2 {
         position: [0.0, 0.5],
         color: [0.0, 1.0, 0.0],
     },
-    DebugVertex2 {
+    Vertex2 {
         position: [-0.5, -0.5],
         color: [0.0, 1.0, 0.0],
     },
-    DebugVertex2 {
+    Vertex2 {
         position: [0.5, -0.5],
         color: [0.0, 1.0, 0.0],
     },
 ];
 
-pub const DEBUG_SQUARE_VERTICES: &[DebugVertex2] = &[
-    DebugVertex2 {
+pub const DEBUG_SQUARE_VERTICES: &[Vertex2] = &[
+    Vertex2 {
         position: [-0.5, 0.5],
         color: [1.0, 0.0, 0.0],
     },
-    DebugVertex2 {
+    Vertex2 {
         position: [0.5, -0.5],
         color: [1.0, 0.0, 0.0],
     },
-    DebugVertex2 {
+    Vertex2 {
         position: [0.5, 0.5],
         color: [1.0, 0.0, 0.0],
     },
-    DebugVertex2 {
+    Vertex2 {
         position: [-0.5, -0.5],
         color: [1.0, 0.0, 0.0],
     },
 ];
 
-pub struct Instance2D {
+pub struct Instance {
     pub position: Vector2<f32>,
     pub scale: Vector2<f32>,
     pub rotation: cgmath::Rad<f32>,
@@ -83,14 +83,14 @@ pub struct Instance2D {
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct Instance2DRaw {
+pub struct InstanceRaw {
     model: [[f32; 3]; 3],
 }
 
-impl Instance2DRaw {
+impl InstanceRaw {
     pub fn buffer_layout() -> wgpu::VertexBufferLayout<'static> {
         wgpu::VertexBufferLayout {
-            array_stride: mem::size_of::<Instance2DRaw>() as wgpu::BufferAddress,
+            array_stride: mem::size_of::<InstanceRaw>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Instance,
             attributes: &[
                 wgpu::VertexAttribute {
@@ -113,9 +113,9 @@ impl Instance2DRaw {
     }
 }
 
-impl Instance2D {
-    pub fn to_raw(&self) -> Instance2DRaw {
-        Instance2DRaw {
+impl Instance {
+    pub fn to_raw(&self) -> InstanceRaw {
+        InstanceRaw {
             model: (Matrix3::from_translation(self.position)
                 * Matrix3::from_angle_z(self.rotation)
                 * Matrix3::from_nonuniform_scale(self.scale.x, self.scale.y))
@@ -163,10 +163,7 @@ impl DebugState {
                     module: &shader,
                     entry_point: Some("vs_main"),
                     compilation_options: PipelineCompilationOptions::default(),
-                    buffers: &[
-                        DebugVertex2::buffer_layout(),
-                        Instance2DRaw::buffer_layout(),
-                    ],
+                    buffers: &[Vertex2::buffer_layout(), InstanceRaw::buffer_layout()],
                 },
                 fragment: Some(FragmentState {
                     module: &shader,
@@ -219,7 +216,7 @@ impl DebugState {
             });
             let instance_buffer = device.create_buffer(&BufferDescriptor {
                 label: Some("Square Instance Buffer"),
-                size: (mem::size_of::<Instance2DRaw>() * Self::MAX_DEBUG_SQUARES)
+                size: (mem::size_of::<InstanceRaw>() * Self::MAX_DEBUG_SQUARES)
                     as wgpu::BufferAddress,
                 usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
                 mapped_at_creation: false,
@@ -240,7 +237,7 @@ impl DebugState {
             });
             let instance_buffer = device.create_buffer(&BufferDescriptor {
                 label: Some("Triangle Instance Buffer"),
-                size: (mem::size_of::<Instance2DRaw>() * Self::MAX_DEBUG_TRIANGLES)
+                size: (mem::size_of::<InstanceRaw>() * Self::MAX_DEBUG_TRIANGLES)
                     as wgpu::BufferAddress,
                 usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
                 mapped_at_creation: false,
@@ -289,14 +286,14 @@ impl DebugState {
         scale: Vector2<f32>,
         rotation: f32,
     ) {
-        let instance = Instance2D {
+        let instance = Instance {
             position,
             scale,
             rotation: cgmath::Rad(rotation),
         };
         queue.write_buffer(
             &self.debug_square.instance_buffer,
-            (self.debug_square.num_instances as usize * mem::size_of::<Instance2DRaw>())
+            (self.debug_square.num_instances as usize * mem::size_of::<InstanceRaw>())
                 as wgpu::BufferAddress,
             bytemuck::cast_slice(&[instance.to_raw()]),
         );
@@ -310,14 +307,14 @@ impl DebugState {
         scale: Vector2<f32>,
         rotation: f32,
     ) {
-        let instance = Instance2D {
+        let instance = Instance {
             position,
             scale,
             rotation: cgmath::Rad(rotation),
         };
         queue.write_buffer(
             &self.debug_triangle.instance_buffer,
-            (self.debug_triangle.num_instances as usize * mem::size_of::<Instance2DRaw>())
+            (self.debug_triangle.num_instances as usize * mem::size_of::<InstanceRaw>())
                 as wgpu::BufferAddress,
             bytemuck::cast_slice(&[instance.to_raw()]),
         );
