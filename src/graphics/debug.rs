@@ -15,13 +15,13 @@ use crate::graphics::{common_models::SQUARE_INDICES, shader::load_shader, textur
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct Vertex2 {
-    pub position: [f32; 2],
-    pub color: [f32; 3],
+struct Vertex2 {
+    position: [f32; 2],
+    color: [f32; 3],
 }
 
 impl Vertex2 {
-    pub fn buffer_layout() -> VertexBufferLayout<'static> {
+    fn buffer_layout() -> VertexBufferLayout<'static> {
         VertexBufferLayout {
             array_stride: std::mem::size_of::<Vertex2>() as wgpu::BufferAddress,
             step_mode: VertexStepMode::Vertex,
@@ -41,7 +41,7 @@ impl Vertex2 {
     }
 }
 
-pub const DEBUG_TRIANGLE_VERTICES: &[Vertex2] = &[
+const TRIANGLE_VERTICES: &[Vertex2] = &[
     Vertex2 {
         position: [0.0, 0.5],
         color: [0.0, 1.0, 0.0],
@@ -56,7 +56,7 @@ pub const DEBUG_TRIANGLE_VERTICES: &[Vertex2] = &[
     },
 ];
 
-pub const DEBUG_SQUARE_VERTICES: &[Vertex2] = &[
+const SQUARE_VERTICES: &[Vertex2] = &[
     Vertex2 {
         position: [-0.5, 0.5],
         color: [1.0, 0.0, 0.0],
@@ -138,7 +138,7 @@ pub struct DebugTriangle {
 }
 
 pub struct DebugState {
-    debug_pipeline: RenderPipeline,
+    pipeline: RenderPipeline,
     debug_triangle: DebugTriangle,
     debug_square: DebugSquare,
 }
@@ -148,7 +148,7 @@ impl DebugState {
     const MAX_DEBUG_TRIANGLES: usize = 1000;
 
     pub fn new(device: &Device, config: &SurfaceConfiguration) -> Self {
-        let debug_pipeline = {
+        let pipeline = {
             let shader = load_shader(device, "debug_shader.wgsl", "Debug pipeline shader");
 
             let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
@@ -156,7 +156,7 @@ impl DebugState {
                 bind_group_layouts: &[],
                 push_constant_ranges: &[],
             });
-            let debug_pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
+            let pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
                 label: Some("Debug Pipeline"),
                 layout: Some(&pipeline_layout),
                 vertex: VertexState {
@@ -200,13 +200,13 @@ impl DebugState {
                 cache: None,
             });
 
-            debug_pipeline
+            pipeline
         };
 
         let debug_square = {
             let vertex_buffer = device.create_buffer_init(&BufferInitDescriptor {
                 label: Some("Square Vertex Buffer"),
-                contents: bytemuck::cast_slice(DEBUG_SQUARE_VERTICES),
+                contents: bytemuck::cast_slice(SQUARE_VERTICES),
                 usage: BufferUsages::VERTEX,
             });
             let index_buffer = device.create_buffer_init(&BufferInitDescriptor {
@@ -232,7 +232,7 @@ impl DebugState {
         let debug_triangle = {
             let vertex_buffer = device.create_buffer_init(&BufferInitDescriptor {
                 label: Some("Triangle Vertex Buffer"),
-                contents: bytemuck::cast_slice(DEBUG_TRIANGLE_VERTICES),
+                contents: bytemuck::cast_slice(TRIANGLE_VERTICES),
                 usage: BufferUsages::VERTEX,
             });
             let instance_buffer = device.create_buffer(&BufferDescriptor {
@@ -251,14 +251,14 @@ impl DebugState {
         };
 
         Self {
-            debug_pipeline,
+            pipeline,
             debug_triangle,
             debug_square,
         }
     }
 
     pub fn render(&self, render_pass: &mut RenderPass<'_>) {
-        render_pass.set_pipeline(&self.debug_pipeline);
+        render_pass.set_pipeline(&self.pipeline);
 
         // Draw debug squares
         {
