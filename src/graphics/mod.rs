@@ -1,3 +1,4 @@
+pub mod camera;
 pub mod common_models; // TODO: probably don't reexport this
 mod debug;
 mod shader;
@@ -6,7 +7,7 @@ mod texture;
 use std::{mem, sync::Arc};
 
 use anyhow::Context;
-use cgmath::{Matrix4, Point3, Quaternion, SquareMatrix, Vector2, Vector3};
+use cgmath::{Matrix4, Point3, Quaternion, Vector2, Vector3};
 use image::GenericImageView;
 use wgpu::{
     AddressMode, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor,
@@ -24,7 +25,7 @@ use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
     wgt::{SamplerDescriptor, TextureDescriptor},
 };
-use winit::window::Window;
+use winit::{dpi::LogicalSize, window::Window};
 
 use crate::{camera::Camera, graphics::debug::DebugState, graphics::shader::load_shader};
 
@@ -117,31 +118,6 @@ pub const SQUARE_VERTICES: &[Vertex3] = &[
         tex_coords: [0.0, 1.0],
     },
 ];
-
-#[repr(C)]
-#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct CameraUniform {
-    view_projection: [[f32; 4]; 4],
-}
-
-impl CameraUniform {
-    pub fn new() -> Self {
-        Self {
-            view_projection: Matrix4::identity().into(),
-        }
-    }
-
-    pub fn with_camera(camera: &Camera) -> Self {
-        let mut uniform = Self::new();
-        uniform.update_view_projection(camera);
-        uniform
-    }
-
-    // TODO: can we just fold this into with_camera?
-    pub fn update_view_projection(&mut self, camera: &Camera) {
-        self.view_projection = camera.build_view_projection_matrix().into();
-    }
-}
 
 pub struct Instance {
     pub position: Vector3<f32>,
@@ -265,8 +241,10 @@ impl GraphicsState {
             surface_format.unwrap()
         };
 
-        // Need the size for the surface configuration
         let window_size = window.inner_size();
+
+        let scale_factor = window.scale_factor();
+        let logical_size: LogicalSize<f32> = window_size.to_logical(scale_factor);
 
         let config = SurfaceConfiguration {
             usage: TextureUsages::RENDER_ATTACHMENT,
