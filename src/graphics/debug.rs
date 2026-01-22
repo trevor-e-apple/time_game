@@ -267,7 +267,7 @@ impl DebugState {
         }
     }
 
-    pub fn add_square(
+    pub fn push_square(
         &mut self,
         queue: &wgpu::Queue,
         position: Vector2<f32>,
@@ -290,7 +290,7 @@ impl DebugState {
         self.squares.num_instances += 1;
     }
 
-    pub fn add_triangle(
+    pub fn push_triangle(
         &mut self,
         queue: &wgpu::Queue,
         position: Vector2<f32>,
@@ -311,5 +311,13 @@ impl DebugState {
             bytemuck::cast_slice(&[instance.to_raw()]),
         );
         self.triangles.num_instances += 1;
+    }
+
+    /// Sets the number of instances for all debug models to 0. This does not
+    /// free the buffers associated with the instances. Typically used for a push/clear
+    /// render cycle.
+    pub fn clear_instances(&mut self) {
+        self.squares.num_instances = 0;
+        self.triangles.num_instances = 0;
     }
 }
