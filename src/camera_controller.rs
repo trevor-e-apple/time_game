@@ -1,4 +1,7 @@
+use cgmath::InnerSpace;
 use winit::keyboard::KeyCode;
+
+use crate::graphics::camera::Camera;
 
 pub struct CameraController {
     speed: f32,

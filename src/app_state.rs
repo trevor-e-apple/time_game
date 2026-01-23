@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
-    camera::CameraController,
+    camera_controller::CameraController,
     graphics::{
         GraphicsState, Instance, SQUARE_VERTICES, TRIANGLE_VERTICES,
         common_models::{SQUARE_INDICES, TRIANGLE_INDICES},

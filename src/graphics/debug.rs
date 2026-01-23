@@ -1,17 +1,22 @@
 use std::mem;
 
-use cgmath::{Matrix3, Vector2, Vector3};
+use cgmath::{Matrix3, Vector2};
 use wgpu::{
-    BlendState, BufferDescriptor, BufferUsages, ColorTargetState, ColorWrites, CompareFunction,
-    DepthBiasState, DepthStencilState, Device, Face, FragmentState, FrontFace, IndexFormat,
-    MultisampleState, PipelineCompilationOptions, PipelineLayoutDescriptor, PolygonMode,
-    PrimitiveState, PrimitiveTopology, RenderPass, RenderPipeline, RenderPipelineDescriptor,
+    BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor,
+    BindGroupLayoutEntry, BindingType, BlendState, BufferBindingType, BufferDescriptor,
+    BufferUsages, ColorTargetState, ColorWrites, CompareFunction, DepthBiasState,
+    DepthStencilState, Device, Face, FragmentState, FrontFace, IndexFormat, MultisampleState,
+    PipelineCompilationOptions, PipelineLayoutDescriptor, PolygonMode, PrimitiveState,
+    PrimitiveTopology, RenderPass, RenderPipeline, RenderPipelineDescriptor, ShaderStages,
     StencilState, SurfaceConfiguration, VertexAttribute, VertexBufferLayout, VertexFormat,
     VertexState, VertexStepMode,
     util::{BufferInitDescriptor, DeviceExt},
 };
+use winit::{dpi::LogicalSize, window::Window};
 
-use crate::graphics::{common_models::SQUARE_INDICES, shader::load_shader, texture};
+use crate::graphics::{
+    camera::Camera2DUniform, common_models::SQUARE_INDICES, shader::load_shader, texture,
+};
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -134,19 +139,57 @@ pub struct DebugState {
     pipeline: RenderPipeline,
     triangles: Triangles,
     squares: Squares,
+    camera: Camera2DUniform,
+    camera_buffer: wgpu::Buffer,
+    camera_bind_group: BindGroup,
 }
 
 impl DebugState {
     const MAX_SQUARES: usize = 1000;
     const MAX_TRIANGLES: usize = 1000;
 
-    pub fn new(device: &Device, config: &SurfaceConfiguration) -> Self {
+    pub fn new(window: &Window, device: &Device, config: &SurfaceConfiguration) -> Self {
+        let window_size = window.inner_size();
+        let scale_factor = window.scale_factor();
+        let logical_size: LogicalSize<f32> = window_size.to_logical(scale_factor);
+
+        let camera = Camera2DUniform::new(logical_size.width, logical_size.height);
+        let camera_buffer = device.create_buffer_init(&BufferInitDescriptor {
+            label: Some("Debug Camera Buffer"),
+            contents: bytemuck::cast_slice(&[camera]),
+            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+        });
+
+        let camera_bind_group_layout =
+            device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+                label: Some("Debug Camera Bind Group Layout"),
+                entries: &[BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: ShaderStages::VERTEX,
+                    ty: BindingType::Buffer {
+                        ty: BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+            });
+
+        let camera_bind_group = device.create_bind_group(&BindGroupDescriptor {
+            label: Some("Debug Camera Bind Group"),
+            layout: &camera_bind_group_layout,
+            entries: &[BindGroupEntry {
+                binding: 0,
+                resource: camera_buffer.as_entire_binding(),
+            }],
+        });
+
         let pipeline = {
             let shader = load_shader(device, "debug_shader.wgsl", "Debug pipeline shader");
 
             let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
                 label: Some("Debug Pipeline Layout"),
-                bind_group_layouts: &[],
+                bind_group_layouts: &[&camera_bind_group_layout],
                 push_constant_ranges: &[],
             });
             let pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
@@ -245,11 +288,21 @@ impl DebugState {
             pipeline,
             triangles,
             squares,
+            camera,
+            camera_buffer,
+            camera_bind_group,
         }
+    }
+
+    pub fn resize(&mut self, queue: &mut wgpu::Queue, width: u32, height: u32) {
+        self.camera = Camera2DUniform::new(width as f32, height as f32);
+        queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[self.camera]));
     }
 
     pub fn render(&self, render_pass: &mut RenderPass<'_>) {
         render_pass.set_pipeline(&self.pipeline);
+
+        render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
 
         // Draw debug squares
         {

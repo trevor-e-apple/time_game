@@ -1,5 +1,10 @@
 // Vertex shader
 
+struct Camera2DUniform {
+    view_proj: mat4x4<f32>,
+};
+@group(0) @binding(0) var<uniform> camera: Camera2DUniform;
+
 struct VertexInput {
     @location(0) position: vec2<f32>,
 };
@@ -31,7 +36,7 @@ fn vs_main(
 
     let position = model_matrix * vec3<f32>(model.position.x, model.position.y, 1.0);
 
-    out.clip_position = vec4<f32>(position.x, position.y, 0.0, 1.0);
+    out.clip_position = camera.view_proj * vec4<f32>(position.x, position.y, 0.0, 1.0);
     return out;
 }
 

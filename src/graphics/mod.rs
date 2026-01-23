@@ -25,9 +25,13 @@ use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
     wgt::{SamplerDescriptor, TextureDescriptor},
 };
-use winit::{dpi::LogicalSize, window::Window};
+use winit::window::Window;
 
-use crate::{camera::Camera, graphics::debug::DebugState, graphics::shader::load_shader};
+use crate::{
+    graphics::camera::{Camera, CameraUniform},
+    graphics::debug::DebugState,
+    graphics::shader::load_shader,
+};
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -133,7 +137,7 @@ struct InstanceRaw {
 }
 
 impl InstanceRaw {
-    pub fn buffer_layout() -> wgpu::VertexBufferLayout<'static> {
+    fn buffer_layout() -> wgpu::VertexBufferLayout<'static> {
         wgpu::VertexBufferLayout {
             array_stride: mem::size_of::<InstanceRaw>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Instance,
@@ -164,7 +168,7 @@ impl InstanceRaw {
 }
 
 impl Instance {
-    pub fn to_raw(&self) -> InstanceRaw {
+    fn to_raw(&self) -> InstanceRaw {
         InstanceRaw {
             model: (Matrix4::from_translation(self.position)
                 * Matrix4::from(self.rotation)
@@ -242,9 +246,6 @@ impl GraphicsState {
         };
 
         let window_size = window.inner_size();
-
-        let scale_factor = window.scale_factor();
-        let logical_size: LogicalSize<f32> = window_size.to_logical(scale_factor);
 
         let config = SurfaceConfiguration {
             usage: TextureUsages::RENDER_ATTACHMENT,
@@ -449,7 +450,7 @@ impl GraphicsState {
             render_pipeline
         };
 
-        let debug_state = DebugState::new(&device, &config);
+        let debug_state = DebugState::new(&window, &device, &config);
 
         let depth_texture =
             texture::Texture::create_depth_texture(&device, &config, "Depth Texture");

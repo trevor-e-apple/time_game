@@ -1,5 +1,5 @@
 mod app_state;
-mod camera;
+mod camera_controller;
 mod graphics;
 
 use crate::app_state::AppState;

@@ -50,22 +50,33 @@ impl CameraUniform {
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-struct Camera2DUniform {
+pub struct Camera2DUniform {
     projection: [[f32; 4]; 4],
 }
 
 impl Camera2DUniform {
-    pub fn new(&self, width: f32, height: f32) -> Matrix3<f32> {
-        Matrix3::new(
+    pub fn new(width: f32, height: f32) -> Self {
+        let mat4 = Matrix4::new(
             2.0 / width,
+            0.0,
             0.0,
             0.0,
             0.0,
             2.0 / height,
             0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
             -1.0,
             -1.0,
+            0.0,
             1.0,
-        )
+        );
+
+        Self {
+            projection: mat4.into(),
+        }
     }
 }
