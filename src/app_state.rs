@@ -67,8 +67,8 @@ impl AppState {
             );
         }
 
-        self.camera_controller
-            .update_camera(&mut self.graphics_state.camera);
+        // self.camera_controller
+        //     .update_camera(&mut self.graphics_state.camera);
         self.graphics_state.update_camera_buffer();
     }
 

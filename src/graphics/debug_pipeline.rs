@@ -2,7 +2,7 @@ use std::mem;
 
 use cgmath::{Matrix3, Vector2};
 use wgpu::{
-    BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor,
+    BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
     BindGroupLayoutEntry, BindingType, BlendState, BufferBindingType, BufferDescriptor,
     BufferUsages, ColorTargetState, ColorWrites, CompareFunction, DepthBiasState,
     DepthStencilState, Device, Face, FragmentState, FrontFace, IndexFormat, MultisampleState,
@@ -135,55 +135,21 @@ struct Triangles {
     num_instances: u32,
 }
 
-pub struct DebugState {
+pub struct DebugPipeline {
     pipeline: RenderPipeline,
     triangles: Triangles,
     squares: Squares,
-    camera: Camera2DUniform,
-    camera_buffer: wgpu::Buffer,
-    camera_bind_group: BindGroup,
 }
 
-impl DebugState {
+impl DebugPipeline {
     const MAX_SQUARES: usize = 1000;
     const MAX_TRIANGLES: usize = 1000;
 
-    pub fn new(window: &Window, device: &Device, config: &SurfaceConfiguration) -> Self {
-        let window_size = window.inner_size();
-        let scale_factor = window.scale_factor();
-        let logical_size: LogicalSize<f32> = window_size.to_logical(scale_factor);
-
-        let camera = Camera2DUniform::new(logical_size.width, logical_size.height);
-        let camera_buffer = device.create_buffer_init(&BufferInitDescriptor {
-            label: Some("Debug Camera Buffer"),
-            contents: bytemuck::cast_slice(&[camera]),
-            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-        });
-
-        let camera_bind_group_layout =
-            device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-                label: Some("Debug Camera Bind Group Layout"),
-                entries: &[BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: ShaderStages::VERTEX,
-                    ty: BindingType::Buffer {
-                        ty: BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }],
-            });
-
-        let camera_bind_group = device.create_bind_group(&BindGroupDescriptor {
-            label: Some("Debug Camera Bind Group"),
-            layout: &camera_bind_group_layout,
-            entries: &[BindGroupEntry {
-                binding: 0,
-                resource: camera_buffer.as_entire_binding(),
-            }],
-        });
-
+    pub fn new(
+        device: &Device,
+        config: &SurfaceConfiguration,
+        camera_bind_group_layout: &BindGroupLayout,
+    ) -> Self {
         let pipeline = {
             let shader = load_shader(device, "debug_shader.wgsl", "Debug pipeline shader");
 
@@ -288,9 +254,6 @@ impl DebugState {
             pipeline,
             triangles,
             squares,
-            camera,
-            camera_buffer,
-            camera_bind_group,
         }
     }
 

@@ -1,6 +1,7 @@
-use cgmath::{Matrix3, Matrix4, Point3, SquareMatrix, Vector3, perspective};
+use cgmath::{Matrix4, Point3, SquareMatrix, Vector3, perspective};
 
 // TODO: Is this obviously a POD type? If not, we might want to add a "new" method.
+// TODO: delete 3d camera?
 pub struct Camera {
     pub eye: Point3<f32>,
     pub target: Point3<f32>,
