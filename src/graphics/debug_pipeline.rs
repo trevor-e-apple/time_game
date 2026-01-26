@@ -181,13 +181,7 @@ impl DebugPipeline {
                     polygon_mode: PolygonMode::Fill,
                     conservative: false,
                 },
-                depth_stencil: Some(DepthStencilState {
-                    format: texture::Texture::DEPTH_FORMAT,
-                    depth_write_enabled: true,
-                    depth_compare: CompareFunction::Less,
-                    stencil: StencilState::default(),
-                    bias: DepthBiasState::default(),
-                }),
+                depth_stencil: None,
                 multisample: MultisampleState {
                     count: 1,
                     mask: !0,
