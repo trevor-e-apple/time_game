@@ -54,14 +54,14 @@ impl AppState {
         // Debug entities
         {
             self.graphics_state.push_debug_square(
-                Vector2::new(-0.25, -0.25),
-                Vector2::new(0.5, 0.5),
+                Vector2::new(50.0, 50.0),
+                Vector2::new(30.0, 30.0),
                 3.14 / 4.0,
                 (1.0, 0.0, 1.0),
             );
             self.graphics_state.push_debug_triangle(
-                Vector2::new(0.25, 0.25),
-                Vector2::new(1.0, 1.0),
+                Vector2::new(100.0, 100.0),
+                Vector2::new(30.0, 30.0),
                 3.14 / 4.0,
                 (0.0, 1.0, 1.0),
             );
