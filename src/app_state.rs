@@ -32,8 +32,8 @@ impl AppState {
         graphics_state.add_instance(
             square_index,
             TexturedInstance {
-                position: Vector2::new(0.0, 0.0),
-                scale: Vector2::new(0.5, 0.5),
+                position: Vector2::new(500.0, 500.0),
+                scale: Vector2::new(200.0, 200.0),
                 rotation: cgmath::Rad(0.0),
             },
         );
