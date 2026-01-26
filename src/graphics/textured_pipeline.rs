@@ -1,4 +1,4 @@
-use std::{mem, sync::Arc};
+use std::mem;
 
 use anyhow::Context;
 use cgmath::{Matrix3, Vector2};
@@ -6,19 +6,17 @@ use image::GenericImageView;
 use wgpu::{
     AddressMode, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout,
     BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType, BlendState,
-    BufferDescriptor, BufferUsages, ColorTargetState, ColorWrites, CommandEncoderDescriptor,
-    Extent3d, Face, FilterMode, FragmentState, FrontFace, IndexFormat, LoadOp, MultisampleState,
-    Origin3d, PipelineCompilationOptions, PipelineLayoutDescriptor, PolygonMode, PowerPreference,
-    PrimitiveState, PrimitiveTopology, RenderPassColorAttachment, RenderPassDepthStencilAttachment,
-    RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor, RequestAdapterOptions,
-    SamplerBindingType, ShaderStages, StoreOp, SurfaceConfiguration, TexelCopyBufferLayout,
-    TexelCopyTextureInfo, TextureAspect, TextureDimension, TextureFormat, TextureSampleType,
-    TextureUsages, TextureViewDescriptor, TextureViewDimension, VertexAttribute,
-    VertexBufferLayout, VertexFormat, VertexState, VertexStepMode,
+    BufferDescriptor, BufferUsages, ColorTargetState, ColorWrites, Extent3d, Face, FilterMode,
+    FragmentState, FrontFace, IndexFormat, MultisampleState, Origin3d, PipelineCompilationOptions,
+    PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPass,
+    RenderPipeline, RenderPipelineDescriptor, SamplerBindingType, ShaderStages,
+    SurfaceConfiguration, TexelCopyBufferLayout, TexelCopyTextureInfo, TextureAspect,
+    TextureDimension, TextureFormat, TextureSampleType, TextureUsages, TextureViewDescriptor,
+    TextureViewDimension, VertexAttribute, VertexBufferLayout, VertexFormat, VertexState,
+    VertexStepMode,
     util::{BufferInitDescriptor, DeviceExt},
     wgt::{SamplerDescriptor, TextureDescriptor},
 };
-use winit::window::Window;
 
 use crate::graphics::shader::load_shader;
 
@@ -50,64 +48,36 @@ impl Vertex2 {
     }
 }
 
-#[repr(C)]
-#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct Vertex3 {
-    pub position: [f32; 3],
-    pub tex_coords: [f32; 2],
-}
-
-impl Vertex3 {
-    pub fn buffer_layout() -> wgpu::VertexBufferLayout<'static> {
-        VertexBufferLayout {
-            array_stride: std::mem::size_of::<Vertex3>() as wgpu::BufferAddress,
-            step_mode: VertexStepMode::Vertex,
-            attributes: &[
-                VertexAttribute {
-                    offset: 0,
-                    shader_location: 0,
-                    format: VertexFormat::Float32x3,
-                },
-                VertexAttribute {
-                    offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
-                    shader_location: 1,
-                    format: VertexFormat::Float32x2,
-                },
-            ],
-        }
-    }
-}
-
-pub const TRIANGLE_VERTICES: &[Vertex3] = &[
-    Vertex3 {
-        position: [0.0, 0.5, 0.0],
+pub const TRIANGLE_VERTICES: &[Vertex2] = &[
+    Vertex2 {
+        position: [0.0, 0.5],
         tex_coords: [0.0, 0.0], // Debug code, not currently set
     },
-    Vertex3 {
-        position: [-0.5, -0.5, 0.0],
+    Vertex2 {
+        position: [-0.5, -0.5],
         tex_coords: [0.0, 0.0],
     },
-    Vertex3 {
-        position: [0.5, -0.5, 0.0],
+    Vertex2 {
+        position: [0.5, -0.5],
         tex_coords: [0.0, 0.0],
     },
 ];
 
-pub const SQUARE_VERTICES: &[Vertex3] = &[
-    Vertex3 {
-        position: [-0.5, 0.5, 0.0],
+pub const SQUARE_VERTICES: &[Vertex2] = &[
+    Vertex2 {
+        position: [-0.5, 0.5],
         tex_coords: [0.0, 0.0],
     },
-    Vertex3 {
-        position: [0.5, -0.5, 0.0],
+    Vertex2 {
+        position: [0.5, -0.5],
         tex_coords: [1.0, 1.0],
     },
-    Vertex3 {
-        position: [0.5, 0.5, 0.0],
+    Vertex2 {
+        position: [0.5, 0.5],
         tex_coords: [1.0, 0.0],
     },
-    Vertex3 {
-        position: [-0.5, -0.5, 0.0],
+    Vertex2 {
+        position: [-0.5, -0.5],
         tex_coords: [0.0, 1.0],
     },
 ];
@@ -188,7 +158,8 @@ impl TexturedPipeline {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         camera_bind_group_layout: &BindGroupLayout,
-    ) -> Self {
+        config: &SurfaceConfiguration,
+    ) -> anyhow::Result<Self> {
         // TODO: textures should come from a load function just like shaders do
         let (texture_bind_group_layout, diffuse_bind_group) = {
             let diffuse_bytes = include_bytes!("../../data/happy-tree.png");
@@ -297,7 +268,7 @@ impl TexturedPipeline {
                     module: &shader,
                     entry_point: Some("vs_main"),
                     compilation_options: PipelineCompilationOptions::default(),
-                    buffers: &[Vertex3::buffer_layout(), InstanceRaw::buffer_layout()],
+                    buffers: &[Vertex2::buffer_layout(), InstanceRaw::buffer_layout()],
                 },
                 fragment: Some(FragmentState {
                     module: &shader,
@@ -340,10 +311,10 @@ impl TexturedPipeline {
         })
     }
 
-    pub fn render(&mut self) -> anyhow::Result<()> {
+    pub fn render(&mut self, render_pass: &mut RenderPass<'_>, camera_bind_group: &BindGroup) {
         render_pass.set_pipeline(&self.render_pipeline);
         render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
-        render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
+        render_pass.set_bind_group(1, camera_bind_group, &[]);
 
         for model in &self.models {
             render_pass.set_vertex_buffer(0, model.vertex_buffer.slice(..));
@@ -351,13 +322,12 @@ impl TexturedPipeline {
             render_pass.set_vertex_buffer(1, model.instance_buffer.slice(..));
             render_pass.draw_indexed(0..model.num_indices, 0, 0..model.num_instances);
         }
-
-        Ok(())
     }
 
     pub fn add_model(
         &mut self,
-        vertices: &[Vertex3],
+        device: &wgpu::Device,
+        vertices: &[Vertex2],
         indices: &[u32],
         max_instances: usize,
     ) -> usize {
@@ -394,7 +364,12 @@ impl TexturedPipeline {
     }
 
     // TODO: maybe reallocate instance buffer if we exceed max instances?
-    pub fn add_instance(&mut self, model_index: usize, instance: TexturedInstance) {
+    pub fn add_instance(
+        &mut self,
+        queue: &wgpu::Queue,
+        model_index: usize,
+        instance: TexturedInstance,
+    ) {
         if let Some(model) = self.models.get_mut(model_index) {
             assert!(
                 (model.num_instances as usize) < model.max_instances,

@@ -2,21 +2,16 @@ use std::mem;
 
 use cgmath::{Matrix3, Vector2};
 use wgpu::{
-    BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
-    BindGroupLayoutEntry, BindingType, BlendState, BufferBindingType, BufferDescriptor,
-    BufferUsages, ColorTargetState, ColorWrites, CompareFunction, DepthBiasState,
-    DepthStencilState, Device, Face, FragmentState, FrontFace, IndexFormat, MultisampleState,
-    PipelineCompilationOptions, PipelineLayoutDescriptor, PolygonMode, PrimitiveState,
-    PrimitiveTopology, RenderPass, RenderPipeline, RenderPipelineDescriptor, ShaderStages,
-    StencilState, SurfaceConfiguration, VertexAttribute, VertexBufferLayout, VertexFormat,
-    VertexState, VertexStepMode,
+    BindGroup, BindGroupLayout, BlendState, BufferDescriptor, BufferUsages, ColorTargetState,
+    ColorWrites, CompareFunction, DepthBiasState, DepthStencilState, Device, Face, FragmentState,
+    FrontFace, IndexFormat, MultisampleState, PipelineCompilationOptions, PipelineLayoutDescriptor,
+    PolygonMode, PrimitiveState, PrimitiveTopology, RenderPass, RenderPipeline,
+    RenderPipelineDescriptor, StencilState, SurfaceConfiguration, VertexAttribute,
+    VertexBufferLayout, VertexFormat, VertexState, VertexStepMode,
     util::{BufferInitDescriptor, DeviceExt},
 };
-use winit::{dpi::LogicalSize, window::Window};
 
-use crate::graphics::{
-    camera::Camera2DUniform, common_models::SQUARE_INDICES, shader::load_shader, texture,
-};
+use crate::graphics::{common_models::SQUARE_INDICES, shader::load_shader, texture};
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -257,15 +252,10 @@ impl DebugPipeline {
         }
     }
 
-    pub fn resize(&mut self, queue: &mut wgpu::Queue, width: u32, height: u32) {
-        self.camera = Camera2DUniform::new(width as f32, height as f32);
-        queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[self.camera]));
-    }
-
-    pub fn render(&self, render_pass: &mut RenderPass<'_>) {
+    pub fn render(&self, render_pass: &mut RenderPass<'_>, camera_bind_group: &BindGroup) {
         render_pass.set_pipeline(&self.pipeline);
 
-        render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
+        render_pass.set_bind_group(0, camera_bind_group, &[]);
 
         // Draw debug squares
         {

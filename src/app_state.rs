@@ -3,8 +3,9 @@ use std::sync::Arc;
 use crate::{
     camera_controller::CameraController,
     graphics::{
-        GraphicsState, Instance, SQUARE_VERTICES, TRIANGLE_VERTICES,
+        GraphicsState,
         common_models::{SQUARE_INDICES, TRIANGLE_INDICES},
+        textured_pipeline::{SQUARE_VERTICES, TRIANGLE_VERTICES, TexturedInstance},
     },
 };
 
@@ -30,10 +31,10 @@ impl AppState {
 
         graphics_state.add_instance(
             square_index,
-            Instance {
-                position: Vector3::new(0.0, 0.0, 0.0),
-                scale: Vector3::new(0.5, 0.5, 1.0),
-                rotation: Quaternion::new(1.0, 0.0, 0.0, 0.0),
+            TexturedInstance {
+                position: Vector2::new(0.0, 0.0),
+                scale: Vector2::new(0.5, 0.5),
+                rotation: cgmath::Rad(0.0),
             },
         );
 
@@ -66,10 +67,6 @@ impl AppState {
                 (0.0, 1.0, 1.0),
             );
         }
-
-        // self.camera_controller
-        //     .update_camera(&mut self.graphics_state.camera);
-        self.graphics_state.update_camera_buffer();
     }
 
     pub fn render(&mut self) -> anyhow::Result<()> {

@@ -3,7 +3,7 @@ pub mod common_models; // TODO: probably don't reexport this
 mod debug_pipeline;
 mod shader;
 mod texture;
-mod textured_pipeline;
+pub mod textured_pipeline; // TODO: probably don't reexport this
 
 use std::sync::Arc;
 
@@ -11,13 +11,10 @@ use anyhow::Context;
 use cgmath::Vector2;
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor,
-    BindGroupLayoutEntry, BindingType, BlendState, BufferBindingType, BufferUsages,
-    ColorTargetState, ColorWrites, CommandEncoderDescriptor, CompareFunction, DepthBiasState,
-    DepthStencilState, Face, FragmentState, FrontFace, LoadOp, MultisampleState,
-    PipelineCompilationOptions, PipelineLayoutDescriptor, PolygonMode, PowerPreference,
-    PrimitiveState, PrimitiveTopology, RenderPassColorAttachment, RenderPassDescriptor,
-    RenderPipelineDescriptor, RequestAdapterOptions, ShaderStages, StencilState, StoreOp, Surface,
-    SurfaceConfiguration, TextureUsages, TextureViewDescriptor, VertexState,
+    BindGroupLayoutEntry, BindingType, BufferBindingType, BufferUsages, CommandEncoderDescriptor,
+    LoadOp, PowerPreference, RenderPassColorAttachment, RenderPassDescriptor,
+    RequestAdapterOptions, ShaderStages, StoreOp, Surface, SurfaceConfiguration, TextureUsages,
+    TextureViewDescriptor,
     util::{BufferInitDescriptor, DeviceExt},
 };
 use winit::{dpi::LogicalSize, window::Window};
@@ -25,8 +22,7 @@ use winit::{dpi::LogicalSize, window::Window};
 use crate::graphics::{
     camera::Camera2DUniform,
     debug_pipeline::DebugPipeline,
-    shader::load_shader,
-    textured_pipeline::{TexturedPipeline, Vertex3},
+    textured_pipeline::{TexturedInstance, TexturedPipeline, Vertex2},
 };
 
 pub struct GraphicsState {
@@ -135,7 +131,9 @@ impl GraphicsState {
             }],
         });
 
-        let textured_pipeline = TexturedPipeline::new();
+        let textured_pipeline =
+            TexturedPipeline::new(&device, &queue, &camera_bind_group_layout, &config)
+                .context("Failed to make textured pipeline")?;
         let debug_pipeline = DebugPipeline::new(&device, &config, &camera_bind_group_layout);
 
         Ok(Self {
@@ -146,7 +144,7 @@ impl GraphicsState {
             camera,
             camera_buffer,
             camera_bind_group,
-            textured_pipeline: todo!(),
+            textured_pipeline,
             debug_pipeline,
         })
     }
@@ -156,6 +154,7 @@ impl GraphicsState {
         self.config.width = width;
         self.config.height = height;
         self.surface.configure(&self.device, &self.config);
+        // TODO: need to reacquire logical size of the window?
     }
 
     pub fn render(&mut self) -> anyhow::Result<()> {
@@ -196,9 +195,11 @@ impl GraphicsState {
                 timestamp_writes: None,
             });
 
-            self.textured_pipeline.render(&mut render_pass);
+            self.textured_pipeline
+                .render(&mut render_pass, &self.camera_bind_group);
 
-            self.debug_pipeline.render(&mut render_pass);
+            self.debug_pipeline
+                .render(&mut render_pass, &self.camera_bind_group);
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
@@ -208,16 +209,19 @@ impl GraphicsState {
 
     pub fn add_model(
         &mut self,
-        vertices: &[Vertex3],
+        vertices: &[Vertex2],
         indices: &[u32],
         max_instances: usize,
     ) -> usize {
         self.textured_pipeline
-            .add_model(vertices, indices, max_instances)
+            .add_model(&self.device, vertices, indices, max_instances)
     }
 
     // TODO: maybe reallocate instance buffer if we exceed max instances?
-    pub fn add_instance(&mut self, model_index: usize, instance: Instance) {}
+    pub fn add_instance(&mut self, model_index: usize, instance: TexturedInstance) {
+        self.textured_pipeline
+            .add_instance(&self.queue, model_index, instance);
+    }
 
     pub fn push_debug_square(
         &mut self,
