@@ -1,6 +1,6 @@
 pub mod camera;
 pub mod common_models; // TODO: probably don't reexport this
-mod debug;
+mod debug_pipeline;
 mod shader;
 mod texture;
 
@@ -29,7 +29,7 @@ use winit::window::Window;
 
 use crate::{
     graphics::camera::{Camera, CameraUniform},
-    graphics::debug::DebugState,
+    graphics::debug_pipeline::DebugState,
     graphics::shader::load_shader,
 };
 
