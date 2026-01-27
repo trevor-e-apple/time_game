@@ -22,7 +22,7 @@ use winit::{dpi::LogicalSize, window::Window};
 use crate::graphics::{
     camera::Camera2DUniform,
     debug_pipeline::DebugPipeline,
-    textured_pipeline::{TexturedInstance, TexturedPipeline, Vertex2},
+    textured_pipeline::{TexturedPipeline, TexturedQuad},
 };
 
 pub struct GraphicsState {
@@ -195,8 +195,11 @@ impl GraphicsState {
                 timestamp_writes: None,
             });
 
-            self.textured_pipeline
-                .render(&mut render_pass, &self.camera_bind_group);
+            self.textured_pipeline.render(
+                &mut self.queue,
+                &mut render_pass,
+                &self.camera_bind_group,
+            );
 
             self.debug_pipeline
                 .render(&mut render_pass, &self.camera_bind_group);
@@ -207,20 +210,8 @@ impl GraphicsState {
         Ok(())
     }
 
-    pub fn add_model(
-        &mut self,
-        vertices: &[Vertex2],
-        indices: &[u32],
-        max_instances: usize,
-    ) -> usize {
-        self.textured_pipeline
-            .add_model(&self.device, vertices, indices, max_instances)
-    }
-
-    // TODO: maybe reallocate instance buffer if we exceed max instances?
-    pub fn add_instance(&mut self, model_index: usize, instance: TexturedInstance) {
-        self.textured_pipeline
-            .add_instance(&self.queue, model_index, instance);
+    pub fn push_textured_quad(&mut self, quad: TexturedQuad) {
+        self.textured_pipeline.push_textured_quad(quad)
     }
 
     pub fn push_debug_square(

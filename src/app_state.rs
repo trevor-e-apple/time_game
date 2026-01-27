@@ -2,22 +2,16 @@ use std::sync::Arc;
 
 use crate::{
     camera_controller::CameraController,
-    graphics::{
-        GraphicsState,
-        common_models::{SQUARE_INDICES, TRIANGLE_INDICES},
-        textured_pipeline::{SQUARE_VERTICES, TRIANGLE_VERTICES, TexturedInstance},
-    },
+    graphics::{GraphicsState, textured_pipeline::TexturedQuad},
 };
 
-use cgmath::{Quaternion, Vector2, Vector3};
+use cgmath::Vector2;
 use winit::window::Window;
 
 pub struct AppState {
     window: Arc<Window>, // We need window to be an Arc so that the surface can hold a reference to it
     graphics_state: GraphicsState,
     pub camera_controller: CameraController,
-    triangle_index: usize,
-    square_index: usize,
 }
 
 impl AppState {
@@ -26,24 +20,16 @@ impl AppState {
         let camera_controller = CameraController::new(0.01);
         let mut graphics_state = GraphicsState::new(window.clone()).await?;
 
-        let triangle_index = graphics_state.add_model(TRIANGLE_VERTICES, TRIANGLE_INDICES, 8);
-        let square_index = graphics_state.add_model(SQUARE_VERTICES, SQUARE_INDICES, 8);
-
-        graphics_state.add_instance(
-            square_index,
-            TexturedInstance {
-                position: Vector2::new(500.0, 500.0),
-                scale: Vector2::new(200.0, 200.0),
-                rotation: cgmath::Rad(0.0),
-            },
-        );
+        graphics_state.push_textured_quad(TexturedQuad {
+            position: Vector2::new(250.0, 250.0),
+            dimensions: Vector2::new(200.0, 200.0),
+            layer: 0,
+        });
 
         Ok(Self {
             window,
             graphics_state,
             camera_controller,
-            triangle_index,
-            square_index,
         })
     }
 

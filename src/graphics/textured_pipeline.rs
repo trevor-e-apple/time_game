@@ -18,7 +18,10 @@ use wgpu::{
     wgt::{SamplerDescriptor, TextureDescriptor},
 };
 
-use crate::graphics::shader::load_shader;
+use crate::graphics::{common_models::SQUARE_INDICES, shader::load_shader};
+
+const MAX_TRIANGLES: usize = 128;
+const MAX_QUADS: usize = 1024;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -142,10 +145,20 @@ struct Model {
     max_instances: usize,
 }
 
+#[derive(Copy, Clone)]
+pub struct TexturedQuad {
+    pub position: Vector2<f32>,
+    pub dimensions: Vector2<f32>,
+    pub layer: u32,
+    // TODO: we need a texture handle
+}
+
 pub struct TexturedPipeline {
     render_pipeline: RenderPipeline,
     models: Vec<Model>,
     diffuse_bind_group: BindGroup,
+    quad_index: usize,
+    textured_quads: Vec<TexturedQuad>,
 }
 
 impl TexturedPipeline {
@@ -297,30 +310,69 @@ impl TexturedPipeline {
             render_pipeline
         };
 
-        let models = vec![];
+        let mut models = vec![];
+
+        let quad_index = Self::add_model(
+            &mut models,
+            device,
+            SQUARE_VERTICES,
+            SQUARE_INDICES,
+            MAX_QUADS,
+        );
 
         Ok(Self {
             render_pipeline,
             models,
             diffuse_bind_group,
+            quad_index,
+            textured_quads: vec![],
         })
     }
 
-    pub fn render(&mut self, render_pass: &mut RenderPass<'_>, camera_bind_group: &BindGroup) {
-        render_pass.set_pipeline(&self.render_pipeline);
-        render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
-        render_pass.set_bind_group(1, camera_bind_group, &[]);
+    pub fn render(
+        &mut self,
+        queue: &wgpu::Queue,
+        render_pass: &mut RenderPass<'_>,
+        camera_bind_group: &BindGroup,
+    ) {
+        // Write quads to instance buffers
+        {
+            // Sort the quads by their layers
+            self.textured_quads.sort_by_key(|k| k.layer);
 
-        for model in &self.models {
-            render_pass.set_vertex_buffer(0, model.vertex_buffer.slice(..));
-            render_pass.set_index_buffer(model.index_buffer.slice(..), IndexFormat::Uint32);
-            render_pass.set_vertex_buffer(1, model.instance_buffer.slice(..));
-            render_pass.draw_indexed(0..model.num_indices, 0, 0..model.num_instances);
+            // Write quads to instance buffers
+            for quad in &self.textured_quads {
+                Self::add_instance(
+                    &mut self.models,
+                    queue,
+                    self.quad_index,
+                    TexturedInstance {
+                        position: quad.position,
+                        scale: quad.dimensions,
+                        rotation: cgmath::Rad(0.0),
+                    },
+                );
+            }
+        }
+
+        // Buffers are now set. Make render calls
+        {
+            render_pass.set_pipeline(&self.render_pipeline);
+            // TODO: move this bind group set into the loop?
+            render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
+            render_pass.set_bind_group(1, camera_bind_group, &[]);
+
+            for model in &self.models {
+                render_pass.set_vertex_buffer(0, model.vertex_buffer.slice(..));
+                render_pass.set_index_buffer(model.index_buffer.slice(..), IndexFormat::Uint32);
+                render_pass.set_vertex_buffer(1, model.instance_buffer.slice(..));
+                render_pass.draw_indexed(0..model.num_indices, 0, 0..model.num_instances);
+            }
         }
     }
 
-    pub fn add_model(
-        &mut self,
+    fn add_model(
+        models: &mut Vec<Model>,
         device: &wgpu::Device,
         vertices: &[Vertex2],
         indices: &[u32],
@@ -344,8 +396,8 @@ impl TexturedPipeline {
             mapped_at_creation: false,
         });
 
-        let model_index = self.models.len();
-        self.models.push(Model {
+        let model_index = models.len();
+        models.push(Model {
             vertex_buffer,
             num_vertices: vertices.len() as u32,
             index_buffer,
@@ -359,13 +411,13 @@ impl TexturedPipeline {
     }
 
     // TODO: maybe reallocate instance buffer if we exceed max instances?
-    pub fn add_instance(
-        &mut self,
+    fn add_instance(
+        models: &mut Vec<Model>,
         queue: &wgpu::Queue,
         model_index: usize,
         instance: TexturedInstance,
     ) {
-        if let Some(model) = self.models.get_mut(model_index) {
+        if let Some(model) = models.get_mut(model_index) {
             assert!(
                 (model.num_instances as usize) < model.max_instances,
                 "Exceeded maximum number of instances for model"
@@ -379,5 +431,15 @@ impl TexturedPipeline {
             );
             model.num_instances += 1;
         }
+    }
+
+    /// Clears push buffers in preparation for next frame update
+    pub fn clear(&mut self) {
+        self.textured_quads.clear();
+        self.models[self.quad_index].num_instances = 0;
+    }
+
+    pub fn push_textured_quad(&mut self, quad: TexturedQuad) {
+        self.textured_quads.push(quad);
     }
 }
