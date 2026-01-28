@@ -149,8 +149,8 @@ struct Model {
 pub struct TexturedQuad {
     pub position: Vector2<f32>,
     pub dimensions: Vector2<f32>,
-    pub layer: u32,
-    // TODO: we need a texture handle
+    pub layer: u32, // NOTE: layers will be sorted from smallest to largest
+                    // TODO: we need a texture handle
 }
 
 pub struct TexturedPipeline {
@@ -434,7 +434,7 @@ impl TexturedPipeline {
     }
 
     /// Clears push buffers in preparation for next frame update
-    pub fn clear(&mut self) {
+    pub fn clear_instances(&mut self) {
         self.textured_quads.clear();
         self.models[self.quad_index].num_instances = 0;
     }

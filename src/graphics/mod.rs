@@ -26,6 +26,7 @@ use crate::graphics::{
 };
 
 pub struct GraphicsState {
+    window: Arc<Window>,
     surface: Surface<'static>,
     device: wgpu::Device,
     queue: wgpu::Queue,
@@ -137,6 +138,7 @@ impl GraphicsState {
         let debug_pipeline = DebugPipeline::new(&device, &config, &camera_bind_group_layout);
 
         Ok(Self {
+            window,
             surface,
             device,
             queue,
@@ -147,6 +149,12 @@ impl GraphicsState {
             textured_pipeline,
             debug_pipeline,
         })
+    }
+
+    pub fn get_logical_size(&self) -> LogicalSize<f32> {
+        let window_size = self.window.inner_size();
+        let scale_factor = self.window.scale_factor();
+        window_size.to_logical(scale_factor)
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
@@ -237,6 +245,7 @@ impl GraphicsState {
     }
 
     pub fn clear_instances(&mut self) {
+        self.textured_pipeline.clear_instances();
         self.debug_pipeline.clear_instances();
     }
 }

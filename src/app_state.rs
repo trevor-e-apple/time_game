@@ -18,13 +18,7 @@ impl AppState {
     /// Function is async because some wgpu functions are async
     pub async fn resumed(window: Arc<Window>) -> anyhow::Result<Self> {
         let camera_controller = CameraController::new(0.01);
-        let mut graphics_state = GraphicsState::new(window.clone()).await?;
-
-        graphics_state.push_textured_quad(TexturedQuad {
-            position: Vector2::new(250.0, 250.0),
-            dimensions: Vector2::new(200.0, 200.0),
-            layer: 0,
-        });
+        let graphics_state = GraphicsState::new(window.clone()).await?;
 
         Ok(Self {
             window,
@@ -38,6 +32,16 @@ impl AppState {
     }
 
     pub fn update(&mut self) {
+        // Main entities
+        {
+            let logical_size = self.graphics_state.get_logical_size();
+            self.graphics_state.push_textured_quad(TexturedQuad {
+                position: Vector2::new(logical_size.width / 2.0, logical_size.height / 2.0),
+                dimensions: Vector2::new(200.0, 200.0),
+                layer: 1,
+            });
+        }
+
         // Debug entities
         {
             self.graphics_state.push_debug_square(
