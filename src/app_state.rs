@@ -1,4 +1,8 @@
-use std::sync::Arc;
+use std::{
+    sync::Arc,
+    thread,
+    time::{Duration, Instant},
+};
 
 use crate::{
     camera_controller::CameraController,
@@ -12,9 +16,12 @@ pub struct AppState {
     window: Arc<Window>, // We need window to be an Arc so that the surface can hold a reference to it
     graphics_state: GraphicsState,
     pub camera_controller: CameraController,
+    start_time: Instant,
+    frame_time: Duration, // ns
 }
 
 impl AppState {
+    const DEFAULT_FRAME_TIME_MS: u64 = 16;
     /// Function is async because some wgpu functions are async
     pub async fn resumed(window: Arc<Window>) -> anyhow::Result<Self> {
         let camera_controller = CameraController::new(0.01);
@@ -24,6 +31,8 @@ impl AppState {
             window,
             graphics_state,
             camera_controller,
+            start_time: Instant::now(),
+            frame_time: Duration::from_millis(Self::DEFAULT_FRAME_TIME_MS),
         })
     }
 
@@ -32,6 +41,8 @@ impl AppState {
     }
 
     pub fn update(&mut self) {
+        self.start_time = Instant::now();
+
         // Main entities
         {
             let logical_size = self.graphics_state.get_logical_size();
@@ -66,6 +77,17 @@ impl AppState {
 
         self.graphics_state.clear_instances();
 
+        {
+            let end_time = Instant::now();
+            let duration = end_time - self.start_time;
+
+            // TODO: better logging
+            println!("Frame time: {}", duration.as_micros());
+
+            let sleep_time = self.frame_time - duration;
+            // Sleep this thread
+            thread::sleep(sleep_time);
+        }
         Ok(())
     }
 }
