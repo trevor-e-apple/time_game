@@ -1,1 +1,5 @@
 /target
+perf.data
+perf.data.*
+profile.json.gz
+flamegraph.svg

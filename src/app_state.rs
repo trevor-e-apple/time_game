@@ -4,40 +4,39 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::{
-    camera_controller::CameraController,
-    graphics::{GraphicsState, textured_pipeline::TexturedQuad},
-};
+use crate::graphics::{GraphicsState, textured_pipeline::TexturedQuad};
 
 use cgmath::Vector2;
-use winit::window::Window;
+use winit::{dpi::LogicalSize, window::Window};
 
 pub struct AppState {
     window: Arc<Window>, // We need window to be an Arc so that the surface can hold a reference to it
     graphics_state: GraphicsState,
-    pub camera_controller: CameraController,
     start_time: Instant,
     frame_time: Duration, // ns
+    logical_size: LogicalSize<f32>,
 }
 
 impl AppState {
     const DEFAULT_FRAME_TIME_MS: u64 = 16;
     /// Function is async because some wgpu functions are async
     pub async fn resumed(window: Arc<Window>) -> anyhow::Result<Self> {
-        let camera_controller = CameraController::new(0.01);
         let graphics_state = GraphicsState::new(window.clone()).await?;
+
+        let logical_size = graphics_state.get_logical_size();
 
         Ok(Self {
             window,
             graphics_state,
-            camera_controller,
+            logical_size,
             start_time: Instant::now(),
             frame_time: Duration::from_millis(Self::DEFAULT_FRAME_TIME_MS),
         })
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
-        self.graphics_state.resize(width, height)
+        self.graphics_state.resize(width, height);
+        self.logical_size = self.graphics_state.get_logical_size();
     }
 
     pub fn update(&mut self) {
@@ -45,9 +44,11 @@ impl AppState {
 
         // Main entities
         {
-            let logical_size = self.graphics_state.get_logical_size();
             self.graphics_state.push_textured_quad(TexturedQuad {
-                position: Vector2::new(logical_size.width / 2.0, logical_size.height / 2.0),
+                position: Vector2::new(
+                    self.logical_size.width / 2.0,
+                    self.logical_size.height / 2.0,
+                ),
                 dimensions: Vector2::new(200.0, 200.0),
                 layer: 1,
             });
@@ -85,7 +86,6 @@ impl AppState {
             println!("Frame time: {}", duration.as_micros());
 
             let sleep_time = self.frame_time - duration;
-            // Sleep this thread
             thread::sleep(sleep_time);
         }
         Ok(())

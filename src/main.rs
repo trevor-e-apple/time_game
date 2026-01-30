@@ -53,11 +53,7 @@ impl ApplicationHandler for App {
                 (KeyCode::Escape, true) => {
                     event_loop.exit();
                 }
-                _ => {
-                    state
-                        .camera_controller
-                        .handle_key(code, key_state.is_pressed());
-                }
+                _ => {}
             },
             _ => (),
         }
