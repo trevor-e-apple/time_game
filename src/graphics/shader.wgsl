@@ -14,12 +14,14 @@ struct InstanceInput {
     @location(2) model_matrix_0: vec3<f32>,
     @location(3) model_matrix_1: vec3<f32>,
     @location(4) model_matrix_2: vec3<f32>,
+    @location(5) texture_index: u32,
 }
 
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) tex_coords: vec2<f32>,
+    @location(1) texture_index: u32,
 };
 
 @vertex
@@ -34,6 +36,7 @@ fn vs_main(
 
     var out: VertexOutput;
     out.tex_coords = model.tex_coords;
+    out.texture_index = instance.texture_index;
 
     let position = model_matrix * vec3<f32>(model.position.x, model.position.y, 1.0);
     out.clip_position = camera.view_proj * vec4<f32>(position.x, position.y, 0.0, 1.0);
@@ -42,10 +45,10 @@ fn vs_main(
 
 // Fragment shader
 @group(0) @binding(0)
-var t_diffuse: texture_2d<f32>;
+var t_diffuse: texture_2d_array<f32>;
 @group(0) @binding(1)
 var s_diffuse: sampler;
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    return textureSample(t_diffuse, s_diffuse, in.tex_coords);
+    return textureSample(t_diffuse, s_diffuse, in.tex_coords, texture_index);
 }

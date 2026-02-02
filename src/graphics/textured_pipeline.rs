@@ -89,6 +89,7 @@ pub struct TexturedInstance {
     pub position: Vector2<f32>,
     pub scale: Vector2<f32>,
     pub rotation: cgmath::Rad<f32>,
+    pub texture_index: u32,
 }
 
 // TODO: does this need to be public?
@@ -96,6 +97,7 @@ pub struct TexturedInstance {
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 struct InstanceRaw {
     model: [[f32; 3]; 3],
+    index: u32,
 }
 
 impl InstanceRaw {
@@ -131,6 +133,7 @@ impl TexturedInstance {
                 * Matrix3::from_angle_z(self.rotation)
                 * Matrix3::from_nonuniform_scale(self.scale.x, self.scale.y))
             .into(),
+            index: self.texture_index,
         }
     }
 }
@@ -149,8 +152,8 @@ struct Model {
 pub struct TexturedQuad {
     pub position: Vector2<f32>,
     pub dimensions: Vector2<f32>,
-    pub layer: u32, // NOTE: layers will be sorted from smallest to largest
-                    // TODO: we need a texture handle
+    pub layer: u32,         // NOTE: layers will be sorted from smallest to largest
+    pub texture_index: u32, // TODO: we also need to specify the texture bind group
 }
 
 pub struct TexturedPipeline {
@@ -178,7 +181,7 @@ impl TexturedPipeline {
             let texture_size = Extent3d {
                 width: dimensions.0,
                 height: dimensions.1,
-                depth_or_array_layers: 1,
+                depth_or_array_layers: device.limits().max_texture_array_layers,
             };
             let diffuse_texture = device.create_texture(&TextureDescriptor {
                 label: Some("Diffuse Texture"),
@@ -206,11 +209,29 @@ impl TexturedPipeline {
                 },
                 texture_size,
             );
+            queue.write_texture(
+                TexelCopyTextureInfo {
+                    texture: &diffuse_texture_two,
+                    mip_level: 0,
+                    origin: Origin3d { x: 0, y: 0, z: 1 },
+                    aspect: TextureAspect::All,
+                },
+                &diffuse_rgba,
+                TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(4 * dimensions.0),
+                    rows_per_image: Some(dimensions.1),
+                },
+                texture_size,
+            );
 
-            let diffuse_texture_view =
-                diffuse_texture.create_view(&TextureViewDescriptor::default());
+            let diffuse_texture_view = diffuse_texture.create_view(&TextureViewDescriptor {
+                label: Some("Texture Array View"),
+                dimension: Some(TextureViewDimension::D2Array),
+                ..Default::default()
+            });
             let diffuse_sampler = device.create_sampler(&SamplerDescriptor {
-                label: Some("Diffuse Sampler"),
+                label: Some("Texture Array Sampler"),
                 address_mode_u: AddressMode::ClampToEdge,
                 address_mode_v: AddressMode::ClampToEdge,
                 address_mode_w: AddressMode::ClampToEdge,
