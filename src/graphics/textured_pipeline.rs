@@ -121,6 +121,11 @@ impl InstanceRaw {
                     shader_location: 4,
                     format: wgpu::VertexFormat::Float32x3,
                 },
+                wgpu::VertexAttribute {
+                    offset: mem::size_of::<[f32; 9]>() as wgpu::BufferAddress,
+                    shader_location: 5,
+                    format: wgpu::VertexFormat::Uint32,
+                },
             ],
         }
     }
@@ -178,6 +183,11 @@ impl TexturedPipeline {
                 image::load_from_memory(diffuse_bytes).context("Failed to load texture")?;
             let diffuse_rgba = diffuse_image.to_rgba8();
             let dimensions = diffuse_image.dimensions();
+            let single_texture_size = Extent3d {
+                width: dimensions.0,
+                height: dimensions.1,
+                depth_or_array_layers: 1,
+            };
             let texture_size = Extent3d {
                 width: dimensions.0,
                 height: dimensions.1,
@@ -207,11 +217,16 @@ impl TexturedPipeline {
                     bytes_per_row: Some(4 * dimensions.0),
                     rows_per_image: Some(dimensions.1),
                 },
-                texture_size,
+                single_texture_size,
             );
+
+            let diffuse_bytes = include_bytes!("../../data/happy-tree-two.png");
+            let diffuse_image =
+                image::load_from_memory(diffuse_bytes).context("Failed to load texture")?;
+            let diffuse_rgba = diffuse_image.to_rgba8();
             queue.write_texture(
                 TexelCopyTextureInfo {
-                    texture: &diffuse_texture_two,
+                    texture: &diffuse_texture,
                     mip_level: 0,
                     origin: Origin3d { x: 0, y: 0, z: 1 },
                     aspect: TextureAspect::All,
@@ -222,7 +237,7 @@ impl TexturedPipeline {
                     bytes_per_row: Some(4 * dimensions.0),
                     rows_per_image: Some(dimensions.1),
                 },
-                texture_size,
+                single_texture_size,
             );
 
             let diffuse_texture_view = diffuse_texture.create_view(&TextureViewDescriptor {
@@ -250,7 +265,7 @@ impl TexturedPipeline {
                             visibility: ShaderStages::FRAGMENT,
                             ty: BindingType::Texture {
                                 multisampled: false,
-                                view_dimension: TextureViewDimension::D2,
+                                view_dimension: TextureViewDimension::D2Array,
                                 sample_type: TextureSampleType::Float { filterable: true },
                             },
                             count: None,
@@ -371,6 +386,7 @@ impl TexturedPipeline {
                         position: quad.position,
                         scale: quad.dimensions,
                         rotation: cgmath::Rad(0.0),
+                        texture_index: quad.texture_index,
                     },
                 );
             }

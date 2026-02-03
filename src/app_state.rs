@@ -51,6 +51,16 @@ impl AppState {
                 ),
                 dimensions: Vector2::new(200.0, 200.0),
                 layer: 1,
+                texture_index: 0,
+            });
+            self.graphics_state.push_textured_quad(TexturedQuad {
+                position: Vector2::new(
+                    self.logical_size.width / 2.0 + 100.0,
+                    self.logical_size.height / 2.0,
+                ),
+                dimensions: Vector2::new(200.0, 200.0),
+                layer: 2,
+                texture_index: 1,
             });
         }
 

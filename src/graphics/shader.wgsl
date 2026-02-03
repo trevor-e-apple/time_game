@@ -50,5 +50,5 @@ var t_diffuse: texture_2d_array<f32>;
 var s_diffuse: sampler;
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    return textureSample(t_diffuse, s_diffuse, in.tex_coords, texture_index);
+    return textureSample(t_diffuse, s_diffuse, in.tex_coords, in.texture_index);
 }
