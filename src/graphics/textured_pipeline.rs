@@ -1,8 +1,8 @@
-use std::mem;
+use std::{env, fs::File, io::Read, mem, path::Path};
 
 use anyhow::Context;
 use cgmath::{Matrix3, Vector2};
-use image::GenericImageView;
+use image::{EncodableLayout, GenericImageView};
 use wgpu::{
     AddressMode, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout,
     BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType, BlendState,
@@ -170,6 +170,9 @@ pub struct TexturedPipeline {
 }
 
 impl TexturedPipeline {
+    const TEXTURE_WIDTH: u32 = 256;
+    const TEXTURE_HEIGHT: u32 = 256;
+
     pub fn new(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
@@ -178,19 +181,9 @@ impl TexturedPipeline {
     ) -> anyhow::Result<Self> {
         // TODO: textures should come from a load function just like shaders do
         let (texture_bind_group_layout, diffuse_bind_group) = {
-            let diffuse_bytes = include_bytes!("../../data/happy-tree.png");
-            let diffuse_image =
-                image::load_from_memory(diffuse_bytes).context("Failed to load texture")?;
-            let diffuse_rgba = diffuse_image.to_rgba8();
-            let dimensions = diffuse_image.dimensions();
-            let single_texture_size = Extent3d {
-                width: dimensions.0,
-                height: dimensions.1,
-                depth_or_array_layers: 1,
-            };
             let texture_size = Extent3d {
-                width: dimensions.0,
-                height: dimensions.1,
+                width: Self::TEXTURE_WIDTH,
+                height: Self::TEXTURE_HEIGHT,
                 depth_or_array_layers: device.limits().max_texture_array_layers,
             };
             let diffuse_texture = device.create_texture(&TextureDescriptor {
@@ -204,41 +197,8 @@ impl TexturedPipeline {
                 view_formats: &[],
             });
 
-            queue.write_texture(
-                TexelCopyTextureInfo {
-                    texture: &diffuse_texture,
-                    mip_level: 0,
-                    origin: Origin3d::ZERO,
-                    aspect: TextureAspect::All,
-                },
-                &diffuse_rgba,
-                TexelCopyBufferLayout {
-                    offset: 0,
-                    bytes_per_row: Some(4 * dimensions.0),
-                    rows_per_image: Some(dimensions.1),
-                },
-                single_texture_size,
-            );
-
-            let diffuse_bytes = include_bytes!("../../data/happy-tree-two.png");
-            let diffuse_image =
-                image::load_from_memory(diffuse_bytes).context("Failed to load texture")?;
-            let diffuse_rgba = diffuse_image.to_rgba8();
-            queue.write_texture(
-                TexelCopyTextureInfo {
-                    texture: &diffuse_texture,
-                    mip_level: 0,
-                    origin: Origin3d { x: 0, y: 0, z: 1 },
-                    aspect: TextureAspect::All,
-                },
-                &diffuse_rgba,
-                TexelCopyBufferLayout {
-                    offset: 0,
-                    bytes_per_row: Some(4 * dimensions.0),
-                    rows_per_image: Some(dimensions.1),
-                },
-                single_texture_size,
-            );
+            load_texture(&diffuse_texture, "happy-tree.png", 0, queue)?;
+            load_texture(&diffuse_texture, "happy-tree-two.png", 1, queue)?;
 
             let diffuse_texture_view = diffuse_texture.create_view(&TextureViewDescriptor {
                 label: Some("Texture Array View"),
@@ -479,4 +439,52 @@ impl TexturedPipeline {
     pub fn push_textured_quad(&mut self, quad: TexturedQuad) {
         self.textured_quads.push(quad);
     }
+}
+
+/// Load a texture into a texture array
+fn load_texture(
+    texture_array: &wgpu::Texture,
+    texture_file_name: &str,
+    index: u32,
+    queue: &wgpu::Queue,
+) -> anyhow::Result<()> {
+    let data_source_dir = env::var("DATA_SOURCE_DIR").unwrap();
+    let texture_path = Path::new(&data_source_dir).join(texture_file_name);
+    let mut texture_file = File::open(texture_path).unwrap();
+
+    let mut texture_bytes = vec![];
+    texture_file.read_to_end(&mut texture_bytes).unwrap();
+    let texture_image =
+        image::load_from_memory(texture_bytes.as_bytes()).context("Failed to load texture")?;
+    let diffuse_rgba = texture_image.to_rgba8();
+    let dimensions = texture_image.dimensions();
+
+    assert!(dimensions.0 == texture_array.width() && dimensions.1 == texture_array.height());
+    let single_texture_size = Extent3d {
+        width: dimensions.0,
+        height: dimensions.1,
+        depth_or_array_layers: 1,
+    };
+
+    queue.write_texture(
+        TexelCopyTextureInfo {
+            texture: &texture_array,
+            mip_level: 0,
+            origin: Origin3d {
+                x: 0,
+                y: 0,
+                z: index,
+            },
+            aspect: TextureAspect::All,
+        },
+        &diffuse_rgba,
+        TexelCopyBufferLayout {
+            offset: 0,
+            bytes_per_row: Some(4 * dimensions.0),
+            rows_per_image: Some(dimensions.1),
+        },
+        single_texture_size,
+    );
+
+    Ok(())
 }
