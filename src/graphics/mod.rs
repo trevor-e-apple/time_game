@@ -132,9 +132,8 @@ impl GraphicsState {
             }],
         });
 
-        let textured_pipeline =
-            TexturedPipeline::new(&device, &queue, &camera_bind_group_layout, &config)
-                .context("Failed to make textured pipeline")?;
+        let textured_pipeline = TexturedPipeline::new(&device, &camera_bind_group_layout, &config)
+            .context("Failed to make textured pipeline")?;
         let debug_pipeline = DebugPipeline::new(&device, &config, &camera_bind_group_layout);
 
         Ok(Self {
@@ -218,8 +217,20 @@ impl GraphicsState {
         Ok(())
     }
 
-    pub fn push_textured_quad(&mut self, quad: TexturedQuad) {
-        self.textured_pipeline.push_textured_quad(quad)
+    pub fn push_textured_quad(
+        &mut self,
+        position: Vector2<f32>,
+        dimensions: Vector2<f32>,
+        layer: u32,
+        texture_file_name: &str,
+    ) -> anyhow::Result<()> {
+        self.textured_pipeline.push_textured_quad(
+            position,
+            dimensions,
+            layer,
+            texture_file_name,
+            &self.queue,
+        )
     }
 
     pub fn push_debug_square(

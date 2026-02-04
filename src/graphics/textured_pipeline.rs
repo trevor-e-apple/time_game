@@ -1,4 +1,4 @@
-use std::{env, fs::File, io::Read, mem, path::Path};
+use std::{collections::HashMap, env, fs::File, io::Read, mem, path::Path};
 
 use anyhow::Context;
 use cgmath::{Matrix3, Vector2};
@@ -164,9 +164,13 @@ pub struct TexturedQuad {
 pub struct TexturedPipeline {
     render_pipeline: RenderPipeline,
     models: Vec<Model>,
-    diffuse_bind_group: BindGroup,
+    texture_bind_group: BindGroup,
     quad_index: usize,
     textured_quads: Vec<TexturedQuad>,
+
+    texture_array: wgpu::Texture,
+    loaded_texture_to_index: HashMap<String, usize>,
+    loaded_texture_count: usize,
 }
 
 impl TexturedPipeline {
@@ -175,18 +179,17 @@ impl TexturedPipeline {
 
     pub fn new(
         device: &wgpu::Device,
-        queue: &wgpu::Queue,
         camera_bind_group_layout: &BindGroupLayout,
         config: &SurfaceConfiguration,
     ) -> anyhow::Result<Self> {
         // TODO: textures should come from a load function just like shaders do
-        let (texture_bind_group_layout, diffuse_bind_group) = {
+        let (texture_array, texture_bind_group_layout, texture_bind_group) = {
             let texture_size = Extent3d {
                 width: Self::TEXTURE_WIDTH,
                 height: Self::TEXTURE_HEIGHT,
                 depth_or_array_layers: device.limits().max_texture_array_layers,
             };
-            let diffuse_texture = device.create_texture(&TextureDescriptor {
+            let texture_array = device.create_texture(&TextureDescriptor {
                 label: Some("Diffuse Texture"),
                 size: texture_size,
                 mip_level_count: 1,
@@ -197,15 +200,12 @@ impl TexturedPipeline {
                 view_formats: &[],
             });
 
-            load_texture(&diffuse_texture, "happy-tree.png", 0, queue)?;
-            load_texture(&diffuse_texture, "happy-tree-two.png", 1, queue)?;
-
-            let diffuse_texture_view = diffuse_texture.create_view(&TextureViewDescriptor {
+            let texture_view = texture_array.create_view(&TextureViewDescriptor {
                 label: Some("Texture Array View"),
                 dimension: Some(TextureViewDimension::D2Array),
                 ..Default::default()
             });
-            let diffuse_sampler = device.create_sampler(&SamplerDescriptor {
+            let sampler = device.create_sampler(&SamplerDescriptor {
                 label: Some("Texture Array Sampler"),
                 address_mode_u: AddressMode::ClampToEdge,
                 address_mode_v: AddressMode::ClampToEdge,
@@ -238,22 +238,22 @@ impl TexturedPipeline {
                         },
                     ],
                 });
-            let diffuse_bind_group = device.create_bind_group(&BindGroupDescriptor {
+            let bind_group = device.create_bind_group(&BindGroupDescriptor {
                 label: Some("Diffuse Bind Group"),
                 layout: &texture_bind_group_layout,
                 entries: &[
                     BindGroupEntry {
                         binding: 0,
-                        resource: BindingResource::TextureView(&diffuse_texture_view),
+                        resource: BindingResource::TextureView(&texture_view),
                     },
                     BindGroupEntry {
                         binding: 1,
-                        resource: BindingResource::Sampler(&diffuse_sampler),
+                        resource: BindingResource::Sampler(&sampler),
                     },
                 ],
             });
 
-            (texture_bind_group_layout, diffuse_bind_group)
+            (texture_array, texture_bind_group_layout, bind_group)
         };
 
         let render_pipeline = {
@@ -316,12 +316,17 @@ impl TexturedPipeline {
             MAX_QUADS,
         );
 
+        let loaded_texture_to_index = HashMap::new();
+
         Ok(Self {
             render_pipeline,
             models,
-            diffuse_bind_group,
+            texture_bind_group,
             quad_index,
             textured_quads: vec![],
+            texture_array,
+            loaded_texture_to_index,
+            loaded_texture_count: 0,
         })
     }
 
@@ -356,7 +361,7 @@ impl TexturedPipeline {
         {
             render_pass.set_pipeline(&self.render_pipeline);
             // TODO: move this bind group set into the loop?
-            render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
+            render_pass.set_bind_group(0, &self.texture_bind_group, &[]);
             render_pass.set_bind_group(1, camera_bind_group, &[]);
 
             for model in &self.models {
@@ -436,8 +441,41 @@ impl TexturedPipeline {
         self.models[self.quad_index].num_instances = 0;
     }
 
-    pub fn push_textured_quad(&mut self, quad: TexturedQuad) {
-        self.textured_quads.push(quad);
+    pub fn push_textured_quad(
+        &mut self,
+        position: Vector2<f32>,
+        dimensions: Vector2<f32>,
+        layer: u32,
+        texture_file_name: &str,
+        queue: &wgpu::Queue,
+    ) -> anyhow::Result<()> {
+        // Check whether texture is already loaded
+        let texture_index = match self.loaded_texture_to_index.get(texture_file_name) {
+            Some(texture_index) => *texture_index,
+            None => {
+                load_texture(
+                    &self.texture_array,
+                    texture_file_name,
+                    self.loaded_texture_count as u32,
+                    queue,
+                )?;
+                let texture_index = self.loaded_texture_count;
+
+                // Update management state so that we can track how many textures have loaded
+                self.loaded_texture_count += 1;
+                self.loaded_texture_to_index
+                    .insert(texture_file_name.to_owned(), texture_index);
+
+                texture_index
+            }
+        };
+        self.textured_quads.push(TexturedQuad {
+            position,
+            dimensions,
+            layer,
+            texture_index: texture_index as u32,
+        });
+        Ok(())
     }
 }
 
