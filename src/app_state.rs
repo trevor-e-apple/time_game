@@ -96,8 +96,7 @@ impl AppState {
             let end_time = Instant::now();
             let duration = end_time - self.start_time;
 
-            // TODO: better logging
-            println!("Frame time: {}", duration.as_micros());
+            // TODO: track / log frame time
 
             let sleep_time = self.frame_time - duration;
             thread::sleep(sleep_time);
