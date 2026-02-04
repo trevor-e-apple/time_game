@@ -182,7 +182,6 @@ impl TexturedPipeline {
         camera_bind_group_layout: &BindGroupLayout,
         config: &SurfaceConfiguration,
     ) -> anyhow::Result<Self> {
-        // TODO: textures should come from a load function just like shaders do
         let (texture_array, texture_bind_group_layout, texture_bind_group) = {
             let texture_size = Extent3d {
                 width: Self::TEXTURE_WIDTH,
