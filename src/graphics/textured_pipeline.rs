@@ -6,8 +6,8 @@ use image::{EncodableLayout, GenericImageView};
 use wgpu::{
     AddressMode, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout,
     BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType, BlendState,
-    BufferDescriptor, BufferUsages, ColorTargetState, ColorWrites, Extent3d, Face, FilterMode,
-    FragmentState, FrontFace, IndexFormat, MultisampleState, Origin3d, PipelineCompilationOptions,
+    BufferUsages, ColorTargetState, ColorWrites, Extent3d, Face, FilterMode, FragmentState,
+    FrontFace, IndexFormat, MultisampleState, Origin3d, PipelineCompilationOptions,
     PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPass,
     RenderPipeline, RenderPipelineDescriptor, SamplerBindingType, ShaderStages,
     SurfaceConfiguration, TexelCopyBufferLayout, TexelCopyTextureInfo, TextureAspect,
@@ -154,7 +154,7 @@ impl TexturedInstance {
 // }
 
 // For tracking render data related to a layer's quad instances
-struct QuadInstances {
+struct QuadInstanceBuffer {
     instance_buffer: wgpu::Buffer,
     num_instances: u32,
     max_instances: usize,
@@ -184,7 +184,7 @@ pub struct TexturedPipeline {
     quad_num_vertices: u32,
     quad_index_buffer: wgpu::Buffer,
     quad_num_indices: u32,
-    quad_instances: HashMap<u32, QuadInstances>,
+    quad_instance_buffers: HashMap<u32, QuadInstanceBuffer>,
 
     // Texture management
     texture_bind_group_layout: BindGroupLayout,
@@ -274,24 +274,28 @@ impl TexturedPipeline {
             render_pipeline
         };
 
-        let mut models = vec![];
-
-        let quad_index = Self::add_model(
-            &mut models,
-            device,
-            SQUARE_VERTICES,
-            SQUARE_INDICES,
-            MAX_QUADS,
-        );
+        let quad_vertex_buffer = device.create_buffer_init(&BufferInitDescriptor {
+            label: Some("Vertex Buffer"),
+            contents: bytemuck::cast_slice(SQUARE_VERTICES),
+            usage: BufferUsages::VERTEX,
+        });
+        let quad_index_buffer = device.create_buffer_init(&BufferInitDescriptor {
+            label: Some("Index Buffer"),
+            contents: bytemuck::cast_slice(SQUARE_INDICES),
+            usage: BufferUsages::INDEX,
+        });
 
         Ok(Self {
             render_pipeline,
-            models,
-            quad_index,
             textured_quads: vec![],
             texture_bind_group_layout,
             layer_texture_arrays: HashMap::new(),
             max_loaded_texture_count: device.limits().max_texture_array_layers,
+            quad_vertex_buffer,
+            quad_num_vertices: SQUARE_VERTICES.len() as u32,
+            quad_index_buffer,
+            quad_num_indices: SQUARE_INDICES.len() as u32,
+            quad_instance_buffers: HashMap::new(),
         })
     }
 
@@ -301,48 +305,15 @@ impl TexturedPipeline {
         render_pass: &mut RenderPass<'_>,
         camera_bind_group: &BindGroup,
     ) {
-        // // Write quads to instance buffers
-        // {
-        //     // Sort the quads by their layers
-        //     self.textured_quads.sort_by_key(|k| k.layer);
+        // Clear instance buffers
+        for (_, quad_instance_buffer) in &mut self.quad_instance_buffers {
+            quad_instance_buffer.num_instances = 0;
+        }
 
-        //     // Write quads to instance buffers
-        //     for quad in &self.textured_quads {
-        //         Self::add_instance(
-        //             &mut self.models,
-        //             queue,
-        //             self.quad_index,
-        //             TexturedInstance {
-        //                 position: quad.position,
-        //                 scale: quad.dimensions,
-        //                 rotation: cgmath::Rad(0.0),
-        //                 layer: quad.layer,
-        //                 texture_index: quad.texture_index,
-        //             },
-        //         );
-        //     }
-        // }
-
-        // // Buffers are now set. Make render calls
-        // {
-        //     render_pass.set_pipeline(&self.render_pipeline);
-        //     render_pass.set_bind_group(0, &self.texture_bind_group, &[]);
-        //     render_pass.set_bind_group(1, camera_bind_group, &[]);
-
-        //     for model in &self.models {
-        //         render_pass.set_vertex_buffer(0, model.vertex_buffer.slice(..));
-        //         render_pass.set_index_buffer(model.index_buffer.slice(..), IndexFormat::Uint32);
-        //         render_pass.set_vertex_buffer(1, model.instance_buffer.slice(..));
-        //         render_pass.draw_indexed(0..model.num_indices, 0, 0..model.num_instances);
-        //     }
-        // }
-
-        todo!("Clear instances buffers");
-
-        // Write quads to the instance buffers
+        // Write quads in push buffer to the instance buffers
         for textured_quad in &self.textured_quads {
             // Get instances buffer
-            let instances_buffer = match self.quad_instances.get_mut(&textured_quad.layer) {
+            let instances_buffer = match self.quad_instance_buffers.get_mut(&textured_quad.layer) {
                 Some(instances_buffer) => instances_buffer,
                 None => todo!("Set up a new instances buffer"),
             };
@@ -365,75 +336,42 @@ impl TexturedPipeline {
             }
         }
 
-        todo!("Render all instance buffers");
-    }
+        // Push buffer has been used, clear now
+        self.textured_quads.clear();
 
-    fn add_model(
-        models: &mut Vec<Model>,
-        device: &wgpu::Device,
-        vertices: &[Vertex2],
-        indices: &[u32],
-        max_instances: usize,
-    ) -> usize {
-        // TODO: Have a way to provide labels
-        let vertex_buffer = device.create_buffer_init(&BufferInitDescriptor {
-            label: Some("Vertex Buffer"),
-            contents: bytemuck::cast_slice(vertices),
-            usage: BufferUsages::VERTEX,
-        });
-        let index_buffer = device.create_buffer_init(&BufferInitDescriptor {
-            label: Some("Index Buffer"),
-            contents: bytemuck::cast_slice(indices),
-            usage: BufferUsages::INDEX,
-        });
-        let instance_buffer = device.create_buffer(&BufferDescriptor {
-            label: Some("Instance Buffer"),
-            size: (mem::size_of::<InstanceRaw>() * max_instances) as wgpu::BufferAddress,
-            usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
+        // Instance buffers are now set. Make render calls
+        {
+            let buffers_sorted_by_layer: Vec<(&u32, &QuadInstanceBuffer)> = {
+                let mut buffers_sorted_by_layer: Vec<_> =
+                    self.quad_instance_buffers.iter().collect(); // Descending sort of the buffers 
+                buffers_sorted_by_layer.sort_by_key(|a| a.0);
+                buffers_sorted_by_layer
+            };
 
-        let model_index = models.len();
-        models.push(Model {
-            vertex_buffer,
-            num_vertices: vertices.len() as u32,
-            index_buffer,
-            num_indices: indices.len() as u32,
-            instance_buffer,
-            num_instances: 0,
-            max_instances,
-        });
+            render_pass.set_pipeline(&self.render_pipeline);
+            render_pass.set_bind_group(1, camera_bind_group, &[]);
+            render_pass.set_vertex_buffer(0, self.quad_vertex_buffer.slice(..));
+            render_pass.set_index_buffer(self.quad_index_buffer.slice(..), IndexFormat::Uint32);
 
-        model_index
-    }
-
-    // TODO: maybe reallocate instance buffer if we exceed max instances?
-    fn add_instance(
-        models: &mut Vec<Model>,
-        queue: &wgpu::Queue,
-        model_index: usize,
-        instance: TexturedInstance,
-    ) {
-        if let Some(model) = models.get_mut(model_index) {
-            assert!(
-                (model.num_instances as usize) < model.max_instances,
-                "Exceeded maximum number of instances for model"
-            );
-
-            queue.write_buffer(
-                &model.instance_buffer,
-                (model.num_instances as usize * mem::size_of::<InstanceRaw>())
-                    as wgpu::BufferAddress,
-                bytemuck::cast_slice(&[instance.to_raw()]),
-            );
-            model.num_instances += 1;
+            for (layer, quad_instance_buffer) in buffers_sorted_by_layer {
+                let texture_bind_group = {
+                    let layer_texture_array = self.layer_texture_arrays.get(layer).unwrap();
+                    &layer_texture_array.texture_bind_group
+                };
+                render_pass.set_bind_group(0, texture_bind_group, &[]);
+                render_pass.set_vertex_buffer(1, quad_instance_buffer.instance_buffer.slice(..));
+                render_pass.draw_indexed(
+                    0..self.quad_num_indices,
+                    0,
+                    0..quad_instance_buffer.num_instances,
+                );
+            }
         }
     }
 
     /// Clears push buffers in preparation for next frame update
-    pub fn clear_instances(&mut self) {
+    pub fn clear_push_buffer(&mut self) {
         self.textured_quads.clear();
-        self.models[self.quad_index].num_instances = 0;
     }
 
     pub fn push_textured_quad(
@@ -468,12 +406,12 @@ impl TexturedPipeline {
                     });
 
                     let texture_view = texture_array.create_view(&TextureViewDescriptor {
-                        label: Some("Texture Array View"),
+                        label: Some(&format!("Layer{} Texture Array View", layer)),
                         dimension: Some(TextureViewDimension::D2Array),
                         ..Default::default()
                     });
                     let sampler = device.create_sampler(&SamplerDescriptor {
-                        label: Some("Texture Array Sampler"),
+                        label: Some(&format!("Layer{} Texture Array Sampler", layer)),
                         address_mode_u: AddressMode::ClampToEdge,
                         address_mode_v: AddressMode::ClampToEdge,
                         address_mode_w: AddressMode::ClampToEdge,
