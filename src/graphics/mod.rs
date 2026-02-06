@@ -20,9 +20,7 @@ use wgpu::{
 use winit::{dpi::LogicalSize, window::Window};
 
 use crate::graphics::{
-    camera::Camera2DUniform,
-    debug_pipeline::DebugPipeline,
-    textured_pipeline::{TexturedPipeline, TexturedQuad},
+    camera::Camera2DUniform, debug_pipeline::DebugPipeline, textured_pipeline::TexturedPipeline,
 };
 
 pub struct GraphicsState {
@@ -229,6 +227,7 @@ impl GraphicsState {
             dimensions,
             layer,
             texture_file_name,
+            &self.device,
             &self.queue,
         )
     }
@@ -256,7 +255,6 @@ impl GraphicsState {
     }
 
     pub fn clear_instances(&mut self) {
-        self.textured_pipeline.clear_instances();
         self.debug_pipeline.clear_instances();
     }
 }

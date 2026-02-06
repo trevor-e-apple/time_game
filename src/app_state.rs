@@ -4,7 +4,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::graphics::{GraphicsState, textured_pipeline::TexturedQuad};
+use crate::graphics::GraphicsState;
 
 use cgmath::Vector2;
 use winit::{dpi::LogicalSize, window::Window};

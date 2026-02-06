@@ -6,8 +6,8 @@ use image::{EncodableLayout, GenericImageView};
 use wgpu::{
     AddressMode, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout,
     BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType, BlendState,
-    BufferUsages, ColorTargetState, ColorWrites, Extent3d, Face, FilterMode, FragmentState,
-    FrontFace, IndexFormat, MultisampleState, Origin3d, PipelineCompilationOptions,
+    BufferDescriptor, BufferUsages, ColorTargetState, ColorWrites, Extent3d, Face, FilterMode,
+    FragmentState, FrontFace, IndexFormat, MultisampleState, Origin3d, PipelineCompilationOptions,
     PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPass,
     RenderPipeline, RenderPipelineDescriptor, SamplerBindingType, ShaderStages,
     SurfaceConfiguration, TexelCopyBufferLayout, TexelCopyTextureInfo, TextureAspect,
@@ -20,8 +20,7 @@ use wgpu::{
 
 use crate::graphics::{common_models::SQUARE_INDICES, shader::load_shader};
 
-const MAX_TRIANGLES: usize = 128;
-const MAX_QUADS: usize = 1024;
+const MAX_SQUARES_PER_INSTANCE_BUFFER: usize = 1024;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -50,21 +49,6 @@ impl Vertex2 {
         }
     }
 }
-
-pub const TRIANGLE_VERTICES: &[Vertex2] = &[
-    Vertex2 {
-        position: [0.0, 0.5],
-        tex_coords: [0.0, 0.0], // Debug code, not currently set
-    },
-    Vertex2 {
-        position: [-0.5, -0.5],
-        tex_coords: [0.0, 0.0],
-    },
-    Vertex2 {
-        position: [0.5, -0.5],
-        tex_coords: [0.0, 0.0],
-    },
-];
 
 pub const SQUARE_VERTICES: &[Vertex2] = &[
     Vertex2 {
@@ -142,16 +126,6 @@ impl TexturedInstance {
         }
     }
 }
-
-// struct Model {
-//     vertex_buffer: wgpu::Buffer,
-//     num_vertices: u32,
-//     index_buffer: wgpu::Buffer,
-//     num_indices: u32,
-//     instance_buffer: wgpu::Buffer,
-//     num_instances: u32,
-//     max_instances: usize,
-// }
 
 // For tracking render data related to a layer's quad instances
 struct QuadInstanceBuffer {
@@ -301,6 +275,7 @@ impl TexturedPipeline {
 
     pub fn render(
         &mut self,
+        device: &wgpu::Device,
         queue: &wgpu::Queue,
         render_pass: &mut RenderPass<'_>,
         camera_bind_group: &BindGroup,
@@ -315,7 +290,19 @@ impl TexturedPipeline {
             // Get instances buffer
             let instances_buffer = match self.quad_instance_buffers.get_mut(&textured_quad.layer) {
                 Some(instances_buffer) => instances_buffer,
-                None => todo!("Set up a new instances buffer"),
+                None => {
+                    let instance_buffer = device.create_buffer(&BufferDescriptor {
+                        label: Some(&format!(
+                            "Layer {} Square Instance Buffer",
+                            textured_quad.layer
+                        )),
+                        size: (mem::size_of::<InstanceRaw>() * MAX_SQUARES_PER_INSTANCE_BUFFER)
+                            as wgpu::BufferAddress,
+                        usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
+                        mapped_at_creation: false,
+                    });
+                    todo!("Set up a new instances buffer")
+                }
             };
 
             // Write data and update the number of instances
@@ -367,11 +354,6 @@ impl TexturedPipeline {
                 );
             }
         }
-    }
-
-    /// Clears push buffers in preparation for next frame update
-    pub fn clear_push_buffer(&mut self) {
-        self.textured_quads.clear();
     }
 
     pub fn push_textured_quad(
