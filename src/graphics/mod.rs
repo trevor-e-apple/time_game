@@ -201,7 +201,8 @@ impl GraphicsState {
             });
 
             self.textured_pipeline.render(
-                &mut self.queue,
+                &self.device,
+                &self.queue,
                 &mut render_pass,
                 &self.camera_bind_group,
             );

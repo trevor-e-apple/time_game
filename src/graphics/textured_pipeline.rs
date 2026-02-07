@@ -131,7 +131,7 @@ impl TexturedInstance {
 struct QuadInstanceBuffer {
     instance_buffer: wgpu::Buffer,
     num_instances: u32,
-    max_instances: usize,
+    max_instances: u32,
 }
 
 #[derive(Copy, Clone)]
@@ -285,6 +285,9 @@ impl TexturedPipeline {
             quad_instance_buffer.num_instances = 0;
         }
 
+        // NOTE: we do not sort our textured quads b/c there is no guaranteed way to draw
+        // -- instances of a model in order
+
         // Write quads in push buffer to the instance buffers
         for textured_quad in &self.textured_quads {
             // Get instances buffer
@@ -301,7 +304,17 @@ impl TexturedPipeline {
                         usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
                         mapped_at_creation: false,
                     });
-                    todo!("Set up a new instances buffer")
+                    self.quad_instance_buffers.insert(
+                        textured_quad.layer,
+                        QuadInstanceBuffer {
+                            instance_buffer,
+                            num_instances: 0,
+                            max_instances: MAX_SQUARES_PER_INSTANCE_BUFFER as u32,
+                        },
+                    );
+                    self.quad_instance_buffers
+                        .get_mut(&textured_quad.layer)
+                        .unwrap()
                 }
             };
 
@@ -320,6 +333,7 @@ impl TexturedPipeline {
                     bytemuck::cast_slice(&[instance.to_raw()]),
                 );
                 instances_buffer.num_instances += 1;
+                assert!(instances_buffer.num_instances < instances_buffer.max_instances);
             }
         }
 
@@ -328,9 +342,10 @@ impl TexturedPipeline {
 
         // Instance buffers are now set. Make render calls
         {
+            // Ascending sort of the buffers
             let buffers_sorted_by_layer: Vec<(&u32, &QuadInstanceBuffer)> = {
                 let mut buffers_sorted_by_layer: Vec<_> =
-                    self.quad_instance_buffers.iter().collect(); // Descending sort of the buffers 
+                    self.quad_instance_buffers.iter().collect();
                 buffers_sorted_by_layer.sort_by_key(|a| a.0);
                 buffers_sorted_by_layer
             };
