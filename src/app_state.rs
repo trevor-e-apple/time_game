@@ -57,6 +57,14 @@ impl AppState {
                 .unwrap();
             self.graphics_state
                 .push_textured_quad(
+                    Vector2::new(0.0, 0.0),
+                    Vector2::new(200.0, 200.0),
+                    1,
+                    "happy-tree-two.png",
+                )
+                .unwrap();
+            self.graphics_state
+                .push_textured_quad(
                     Vector2::new(
                         self.logical_size.width / 2.0 + 100.0,
                         self.logical_size.height / 2.0,
@@ -98,8 +106,10 @@ impl AppState {
 
             // TODO: track / log frame time
 
-            let sleep_time = self.frame_time - duration;
-            thread::sleep(sleep_time);
+            if self.frame_time > duration {
+                let sleep_time = self.frame_time - duration;
+                thread::sleep(sleep_time);
+            }
         }
         Ok(())
     }
