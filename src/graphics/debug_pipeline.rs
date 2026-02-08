@@ -246,7 +246,7 @@ impl DebugPipeline {
         }
     }
 
-    pub fn render(&self, render_pass: &mut RenderPass<'_>, camera_bind_group: &BindGroup) {
+    pub fn render(&mut self, render_pass: &mut RenderPass<'_>, camera_bind_group: &BindGroup) {
         render_pass.set_pipeline(&self.pipeline);
 
         render_pass.set_bind_group(0, camera_bind_group, &[]);
@@ -265,6 +265,10 @@ impl DebugPipeline {
             render_pass.set_vertex_buffer(1, self.triangles.instance_buffer.slice(..));
             render_pass.draw(0..3, 0..self.triangles.num_instances);
         }
+
+        // Clear instances for the next push buffer cycle that
+        self.squares.num_instances = 0;
+        self.triangles.num_instances = 0;
     }
 
     pub fn push_square(
@@ -311,13 +315,5 @@ impl DebugPipeline {
             bytemuck::cast_slice(&[instance.to_raw()]),
         );
         self.triangles.num_instances += 1;
-    }
-
-    /// Sets the number of instances for all debug models to 0. This does not
-    /// free the buffers associated with the instances. Typically used for a push/clear
-    /// render cycle.
-    pub fn clear_instances(&mut self) {
-        self.squares.num_instances = 0;
-        self.triangles.num_instances = 0;
     }
 }

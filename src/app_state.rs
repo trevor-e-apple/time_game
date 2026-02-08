@@ -98,8 +98,6 @@ impl AppState {
 
         self.graphics_state.render()?;
 
-        self.graphics_state.clear_instances();
-
         {
             let end_time = Instant::now();
             let duration = end_time - self.start_time;

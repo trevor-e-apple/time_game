@@ -254,8 +254,4 @@ impl GraphicsState {
         self.debug_pipeline
             .push_triangle(&self.queue, position, scale, rotation, color);
     }
-
-    pub fn clear_instances(&mut self) {
-        self.debug_pipeline.clear_instances();
-    }
 }
