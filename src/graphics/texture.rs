@@ -1,6 +1,6 @@
 use wgpu::{
-    AddressMode, CompareFunction, Device, Extent3d, FilterMode, SamplerDescriptor,
-    SurfaceConfiguration,
+    AddressMode, CompareFunction, Device, Extent3d, FilterMode, MipmapFilterMode,
+    SamplerDescriptor, SurfaceConfiguration,
 };
 
 pub struct Texture {
@@ -43,7 +43,7 @@ impl Texture {
             address_mode_w: AddressMode::ClampToEdge,
             mag_filter: FilterMode::Linear,
             min_filter: FilterMode::Linear,
-            mipmap_filter: FilterMode::Nearest,
+            mipmap_filter: MipmapFilterMode::Nearest,
             lod_min_clamp: 0.0,
             lod_max_clamp: 100.0,
             compare: Some(CompareFunction::LessEqual),

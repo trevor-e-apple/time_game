@@ -151,7 +151,7 @@ impl DebugPipeline {
             let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
                 label: Some("Debug Pipeline Layout"),
                 bind_group_layouts: &[&camera_bind_group_layout],
-                push_constant_ranges: &[],
+                immediate_size: 0,
             });
             let pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
                 label: Some("Debug Pipeline"),
@@ -187,7 +187,7 @@ impl DebugPipeline {
                     mask: !0,
                     alpha_to_coverage_enabled: false,
                 },
-                multiview: None,
+                multiview_mask: None,
                 cache: None,
             });
 

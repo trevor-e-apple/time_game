@@ -7,10 +7,10 @@ use wgpu::{
     AddressMode, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout,
     BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType, BlendState,
     BufferDescriptor, BufferUsages, ColorTargetState, ColorWrites, Extent3d, Face, FilterMode,
-    FragmentState, FrontFace, IndexFormat, MultisampleState, Origin3d, PipelineCompilationOptions,
-    PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPass,
-    RenderPipeline, RenderPipelineDescriptor, SamplerBindingType, ShaderStages,
-    SurfaceConfiguration, TexelCopyBufferLayout, TexelCopyTextureInfo, TextureAspect,
+    FragmentState, FrontFace, IndexFormat, MipmapFilterMode, MultisampleState, Origin3d,
+    PipelineCompilationOptions, PipelineLayoutDescriptor, PolygonMode, PrimitiveState,
+    PrimitiveTopology, RenderPass, RenderPipeline, RenderPipelineDescriptor, SamplerBindingType,
+    ShaderStages, SurfaceConfiguration, TexelCopyBufferLayout, TexelCopyTextureInfo, TextureAspect,
     TextureDimension, TextureFormat, TextureSampleType, TextureUsages, TextureViewDescriptor,
     TextureViewDimension, VertexAttribute, VertexBufferLayout, VertexFormat, VertexState,
     VertexStepMode,
@@ -204,7 +204,7 @@ impl TexturedPipeline {
             let render_pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
                 bind_group_layouts: &[&texture_bind_group_layout, &camera_bind_group_layout],
-                push_constant_ranges: &[],
+                immediate_size: 0,
             });
 
             let render_pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
@@ -241,7 +241,7 @@ impl TexturedPipeline {
                     mask: !0,
                     alpha_to_coverage_enabled: false,
                 },
-                multiview: None,
+                multiview_mask: None,
                 cache: None,
             });
 
@@ -414,7 +414,7 @@ impl TexturedPipeline {
                         address_mode_w: AddressMode::ClampToEdge,
                         mag_filter: FilterMode::Linear,
                         min_filter: FilterMode::Nearest,
-                        mipmap_filter: FilterMode::Nearest,
+                        mipmap_filter: MipmapFilterMode::Nearest,
                         ..Default::default()
                     });
 
