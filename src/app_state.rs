@@ -44,36 +44,47 @@ impl AppState {
 
         // Main entities
         {
-            self.graphics_state
-                .push_textured_quad(
-                    Vector2::new(
-                        self.logical_size.width / 2.0,
-                        self.logical_size.height / 2.0,
-                    ),
-                    Vector2::new(200.0, 200.0),
-                    1,
-                    "happy-tree.png",
-                )
-                .unwrap();
-            self.graphics_state
-                .push_textured_quad(
-                    Vector2::new(0.0, 0.0),
-                    Vector2::new(200.0, 200.0),
-                    1,
-                    "happy-tree-two.png",
-                )
-                .unwrap();
-            self.graphics_state
-                .push_textured_quad(
-                    Vector2::new(
-                        self.logical_size.width / 2.0 + 100.0,
-                        self.logical_size.height / 2.0,
-                    ),
-                    Vector2::new(200.0, 200.0),
-                    2,
-                    "happy-tree-two.png",
-                )
-                .unwrap();
+            self.graphics_state.push_textured_quad(
+                Vector2::new(
+                    self.logical_size.width / 2.0,
+                    self.logical_size.height / 2.0,
+                ),
+                Vector2::new(200.0, 200.0),
+                1,
+                "happy-tree.png",
+            );
+            self.graphics_state.push_textured_quad(
+                Vector2::new(self.logical_size.width, self.logical_size.height),
+                Vector2::new(200.0, 200.0),
+                1,
+                "happy-tree.png",
+            );
+            self.graphics_state.push_textured_quad(
+                Vector2::new(
+                    self.logical_size.width / 2.0,
+                    self.logical_size.height / 2.0,
+                ),
+                Vector2::new(200.0, 200.0),
+                2,
+                "happy-tree-two.png",
+            );
+
+            self.graphics_state.push_textured_quad(
+                Vector2::new(
+                    self.logical_size.width / 4.0,
+                    self.logical_size.height / 4.0,
+                ),
+                Vector2::new(50.0, 50.0),
+                2,
+                "happy-tree-two.png",
+            );
+
+            self.graphics_state.push_textured_quad(
+                Vector2::new(0.0, 0.0),
+                Vector2::new(200.0, 200.0),
+                2,
+                "happy-tree-two.png",
+            );
         }
 
         // Debug entities
@@ -102,7 +113,8 @@ impl AppState {
             let end_time = Instant::now();
             let duration = end_time - self.start_time;
 
-            // TODO: track / log frame time
+            // TODO: better logging
+            println!("Frame time: {} us", duration.as_micros());
 
             if self.frame_time > duration {
                 let sleep_time = self.frame_time - duration;

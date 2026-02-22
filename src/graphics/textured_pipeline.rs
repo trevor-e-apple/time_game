@@ -2,7 +2,7 @@ use std::{collections::HashMap, env, fs::File, io::Read, mem, path::Path};
 
 use anyhow::Context;
 use cgmath::{Matrix3, Vector2};
-use image::{EncodableLayout, GenericImageView};
+use image::GenericImageView;
 use wgpu::{
     AddressMode, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout,
     BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType, BlendState,
@@ -18,9 +18,10 @@ use wgpu::{
     wgt::{SamplerDescriptor, TextureDescriptor},
 };
 
+use crate::graphics::mipmapper::Mipmapper;
 use crate::graphics::{common_models::SQUARE_INDICES, shader::load_shader};
 
-const MAX_SQUARES_PER_INSTANCE_BUFFER: usize = 1024;
+const MAX_QUADS: usize = 1024;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -69,11 +70,10 @@ pub const SQUARE_VERTICES: &[Vertex2] = &[
     },
 ];
 
-struct TexturedInstance {
-    position: Vector2<f32>,
-    scale: Vector2<f32>,
-    rotation: cgmath::Rad<f32>,
-    texture_index: u32,
+pub struct TexturedInstance {
+    pub position: Vector2<f32>,
+    pub scale: Vector2<f32>,
+    pub rotation: cgmath::Rad<f32>,
 }
 
 // TODO: does this need to be public?
@@ -81,7 +81,6 @@ struct TexturedInstance {
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 struct InstanceRaw {
     model: [[f32; 3]; 3],
-    index: u32,
 }
 
 impl InstanceRaw {
@@ -105,11 +104,6 @@ impl InstanceRaw {
                     shader_location: 4,
                     format: wgpu::VertexFormat::Float32x3,
                 },
-                wgpu::VertexAttribute {
-                    offset: mem::size_of::<[f32; 9]>() as wgpu::BufferAddress,
-                    shader_location: 5,
-                    format: wgpu::VertexFormat::Uint32,
-                },
             ],
         }
     }
@@ -122,54 +116,37 @@ impl TexturedInstance {
                 * Matrix3::from_angle_z(self.rotation)
                 * Matrix3::from_nonuniform_scale(self.scale.x, self.scale.y))
             .into(),
-            index: self.texture_index,
         }
     }
 }
 
-// For tracking render data related to a layer's quad instances
-struct QuadInstanceBuffer {
+struct Quads {
+    vertex_buffer: wgpu::Buffer,
+    num_vertices: u32,
+    index_buffer: wgpu::Buffer,
+    num_indices: u32,
     instance_buffer: wgpu::Buffer,
     num_instances: u32,
-    max_instances: u32,
+    max_instances: usize,
 }
 
 #[derive(Copy, Clone)]
-pub struct TexturedQuad {
-    pub position: Vector2<f32>,
-    pub dimensions: Vector2<f32>,
-    pub layer: u32,         // NOTE: layers will be sorted from smallest to largest
-    pub texture_index: u32, // TODO: we also need to specify the texture bind group
-}
-
-struct LayerTextureArray {
-    texture_array: wgpu::Texture,
-    texture_bind_group: BindGroup,
-    loaded_texture_to_index: HashMap<String, usize>,
-    loaded_texture_count: usize,
+struct TexturedQuad {
+    position: Vector2<f32>,
+    dimensions: Vector2<f32>,
+    layer: u32, // NOTE: layers will be sorted from smallest to largest
+    texture_handle: TextureHandle,
 }
 
 pub struct TexturedPipeline {
     render_pipeline: RenderPipeline,
-    textured_quads: Vec<TexturedQuad>,
-
-    // Quad render data
-    quad_vertex_buffer: wgpu::Buffer,
-    quad_num_vertices: u32,
-    quad_index_buffer: wgpu::Buffer,
-    quad_num_indices: u32,
-    quad_instance_buffers: HashMap<u32, QuadInstanceBuffer>,
-
-    // Texture management
+    quads: Quads,
     texture_bind_group_layout: BindGroupLayout,
-    max_loaded_texture_count: u32, // Max number of loaded textures per layer
-    layer_texture_arrays: HashMap<u32, LayerTextureArray>,
+    textured_quads: Vec<TexturedQuad>,
+    texture_manager: TextureManager,
 }
 
 impl TexturedPipeline {
-    const TEXTURE_WIDTH: u32 = 256;
-    const TEXTURE_HEIGHT: u32 = 256;
-
     pub fn new(
         device: &wgpu::Device,
         camera_bind_group_layout: &BindGroupLayout,
@@ -184,7 +161,7 @@ impl TexturedPipeline {
                         visibility: ShaderStages::FRAGMENT,
                         ty: BindingType::Texture {
                             multisampled: false,
-                            view_dimension: TextureViewDimension::D2Array,
+                            view_dimension: TextureViewDimension::D2,
                             sample_type: TextureSampleType::Float { filterable: true },
                         },
                         count: None,
@@ -197,6 +174,8 @@ impl TexturedPipeline {
                     },
                 ],
             });
+
+        let texture_manager = TextureManager::new(device);
 
         let render_pipeline = {
             let shader = load_shader(&device, "shader.wgsl", "Render pipeline shader");
@@ -241,134 +220,109 @@ impl TexturedPipeline {
                     mask: !0,
                     alpha_to_coverage_enabled: false,
                 },
-                multiview_mask: None,
                 cache: None,
+                multiview_mask: None,
             });
 
             render_pipeline
         };
 
-        let quad_vertex_buffer = device.create_buffer_init(&BufferInitDescriptor {
-            label: Some("Vertex Buffer"),
-            contents: bytemuck::cast_slice(SQUARE_VERTICES),
-            usage: BufferUsages::VERTEX,
-        });
-        let quad_index_buffer = device.create_buffer_init(&BufferInitDescriptor {
-            label: Some("Index Buffer"),
-            contents: bytemuck::cast_slice(SQUARE_INDICES),
-            usage: BufferUsages::INDEX,
-        });
+        let quads = {
+            // TODO: Have a way to provide labels
+            let vertex_buffer = device.create_buffer_init(&BufferInitDescriptor {
+                label: Some("Vertex Buffer"),
+                contents: bytemuck::cast_slice(SQUARE_VERTICES),
+                usage: BufferUsages::VERTEX,
+            });
+            let index_buffer = device.create_buffer_init(&BufferInitDescriptor {
+                label: Some("Index Buffer"),
+                contents: bytemuck::cast_slice(SQUARE_INDICES),
+                usage: BufferUsages::INDEX,
+            });
+            let instance_buffer = device.create_buffer(&BufferDescriptor {
+                label: Some("Instance Buffer"),
+                size: (mem::size_of::<InstanceRaw>() * MAX_QUADS) as wgpu::BufferAddress,
+                usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+
+            Quads {
+                vertex_buffer,
+                num_vertices: SQUARE_VERTICES.len() as u32,
+                index_buffer,
+                num_indices: SQUARE_INDICES.len() as u32,
+                instance_buffer,
+                num_instances: 0,
+                max_instances: MAX_QUADS,
+            }
+        };
 
         Ok(Self {
             render_pipeline,
-            textured_quads: vec![],
+            quads,
+            texture_manager,
             texture_bind_group_layout,
-            layer_texture_arrays: HashMap::new(),
-            max_loaded_texture_count: device.limits().max_texture_array_layers,
-            quad_vertex_buffer,
-            quad_num_vertices: SQUARE_VERTICES.len() as u32,
-            quad_index_buffer,
-            quad_num_indices: SQUARE_INDICES.len() as u32,
-            quad_instance_buffers: HashMap::new(),
+            textured_quads: vec![],
         })
     }
 
     pub fn render(
         &mut self,
-        device: &wgpu::Device,
         queue: &wgpu::Queue,
         render_pass: &mut RenderPass<'_>,
         camera_bind_group: &BindGroup,
     ) {
-        // Clear instance buffers
-        for (_, quad_instance_buffer) in &mut self.quad_instance_buffers {
-            quad_instance_buffer.num_instances = 0;
-        }
+        // Write quads to instance buffers
+        {
+            // Sort the quads by their layers
+            self.textured_quads.sort_by_key(|k| k.layer);
 
-        // NOTE: we do not sort our textured quads b/c there is no guaranteed way to draw
-        // -- instances of a model in order
-
-        // Write quads in push buffer to the instance buffers
-        for textured_quad in &self.textured_quads {
-            // Get instances buffer
-            let instances_buffer = match self.quad_instance_buffers.get_mut(&textured_quad.layer) {
-                Some(instances_buffer) => instances_buffer,
-                None => {
-                    let instance_buffer = device.create_buffer(&BufferDescriptor {
-                        label: Some(&format!(
-                            "Layer {} Square Instance Buffer",
-                            textured_quad.layer
-                        )),
-                        size: (mem::size_of::<InstanceRaw>() * MAX_SQUARES_PER_INSTANCE_BUFFER)
-                            as wgpu::BufferAddress,
-                        usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
-                        mapped_at_creation: false,
-                    });
-                    self.quad_instance_buffers.insert(
-                        textured_quad.layer,
-                        QuadInstanceBuffer {
-                            instance_buffer,
-                            num_instances: 0,
-                            max_instances: MAX_SQUARES_PER_INSTANCE_BUFFER as u32,
-                        },
-                    );
-                    self.quad_instance_buffers
-                        .get_mut(&textured_quad.layer)
-                        .unwrap()
-                }
-            };
-
-            // Write data and update the number of instances
-            {
+            // Write quads to instance buffer
+            // TODO: draw collections of quads on the same layer with the same texture as a single draw instruction
+            for quad in &self.textured_quads {
                 let instance = TexturedInstance {
-                    position: textured_quad.position,
-                    scale: textured_quad.dimensions,
+                    position: quad.position,
+                    scale: quad.dimensions,
                     rotation: cgmath::Rad(0.0),
-                    texture_index: textured_quad.texture_index,
                 };
                 queue.write_buffer(
-                    &instances_buffer.instance_buffer,
-                    (instances_buffer.num_instances as usize * mem::size_of::<InstanceRaw>())
+                    &self.quads.instance_buffer,
+                    (self.quads.num_instances as usize * mem::size_of::<InstanceRaw>())
                         as wgpu::BufferAddress,
                     bytemuck::cast_slice(&[instance.to_raw()]),
                 );
-                instances_buffer.num_instances += 1;
-                assert!(instances_buffer.num_instances < instances_buffer.max_instances);
+                self.quads.num_instances += 1;
             }
         }
 
-        // Push buffer has been used, clear now
-        self.textured_quads.clear();
-
-        // Instance buffers are now set. Make render calls
+        // Buffers are now set. Make render calls
         {
-            // Ascending sort of the buffers
-            let buffers_sorted_by_layer: Vec<(&u32, &QuadInstanceBuffer)> = {
-                let mut buffers_sorted_by_layer: Vec<_> =
-                    self.quad_instance_buffers.iter().collect();
-                buffers_sorted_by_layer.sort_by_key(|a| a.0);
-                buffers_sorted_by_layer
-            };
-
             render_pass.set_pipeline(&self.render_pipeline);
+            // TODO: move this bind group set into the loop?
             render_pass.set_bind_group(1, camera_bind_group, &[]);
-            render_pass.set_vertex_buffer(0, self.quad_vertex_buffer.slice(..));
-            render_pass.set_index_buffer(self.quad_index_buffer.slice(..), IndexFormat::Uint32);
 
-            for (layer, quad_instance_buffer) in buffers_sorted_by_layer {
-                let texture_bind_group = {
-                    let layer_texture_array = self.layer_texture_arrays.get(layer).unwrap();
-                    &layer_texture_array.texture_bind_group
-                };
-                render_pass.set_bind_group(0, texture_bind_group, &[]);
-                render_pass.set_vertex_buffer(1, quad_instance_buffer.instance_buffer.slice(..));
+            for (index, textured_quad) in self.textured_quads.iter().enumerate() {
+                let bind_group = self
+                    .texture_manager
+                    .get_bind_group(&textured_quad.texture_handle)
+                    .unwrap();
+                render_pass.set_bind_group(0, bind_group, &[]);
+
+                render_pass.set_vertex_buffer(0, self.quads.vertex_buffer.slice(..));
+                render_pass
+                    .set_index_buffer(self.quads.index_buffer.slice(..), IndexFormat::Uint32);
+                render_pass.set_vertex_buffer(1, self.quads.instance_buffer.slice(..));
                 render_pass.draw_indexed(
-                    0..self.quad_num_indices,
+                    0..self.quads.num_indices,
                     0,
-                    0..quad_instance_buffer.num_instances,
+                    (index as u32)..((index + 1) as u32),
                 );
             }
         }
+
+        // Clear instances
+        self.textured_quads.clear();
+        self.quads.num_instances = 0;
     }
 
     pub fn push_textured_quad(
@@ -379,158 +333,151 @@ impl TexturedPipeline {
         texture_file_name: &str,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-    ) -> anyhow::Result<()> {
-        // Get the texture array for the specified layer
-        let layer_texture_array = match self.layer_texture_arrays.get_mut(&layer) {
-            Some(layer_texture_array) => layer_texture_array,
-            None => {
-                // Create new texture array
-                let (texture_array, texture_bind_group) = {
-                    let texture_size = Extent3d {
-                        width: Self::TEXTURE_WIDTH,
-                        height: Self::TEXTURE_HEIGHT,
-                        depth_or_array_layers: self.max_loaded_texture_count as u32,
-                    };
-                    let texture_array = device.create_texture(&TextureDescriptor {
-                        label: Some(&format!("Layer{} TextureArray", layer)),
-                        size: texture_size,
-                        mip_level_count: 1,
-                        sample_count: 1,
-                        dimension: TextureDimension::D2,
-                        format: TextureFormat::Rgba8UnormSrgb,
-                        usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
-                        view_formats: &[],
-                    });
-
-                    let texture_view = texture_array.create_view(&TextureViewDescriptor {
-                        label: Some(&format!("Layer{} Texture Array View", layer)),
-                        dimension: Some(TextureViewDimension::D2Array),
-                        ..Default::default()
-                    });
-                    let sampler = device.create_sampler(&SamplerDescriptor {
-                        label: Some(&format!("Layer{} Texture Array Sampler", layer)),
-                        address_mode_u: AddressMode::ClampToEdge,
-                        address_mode_v: AddressMode::ClampToEdge,
-                        address_mode_w: AddressMode::ClampToEdge,
-                        mag_filter: FilterMode::Linear,
-                        min_filter: FilterMode::Nearest,
-                        mipmap_filter: MipmapFilterMode::Nearest,
-                        ..Default::default()
-                    });
-
-                    let bind_group = device.create_bind_group(&BindGroupDescriptor {
-                        label: Some(&format!("Layer{} Bind Group", layer)),
-                        layout: &self.texture_bind_group_layout,
-                        entries: &[
-                            BindGroupEntry {
-                                binding: 0,
-                                resource: BindingResource::TextureView(&texture_view),
-                            },
-                            BindGroupEntry {
-                                binding: 1,
-                                resource: BindingResource::Sampler(&sampler),
-                            },
-                        ],
-                    });
-
-                    (texture_array, bind_group)
-                };
-
-                // Maintain reference to new layer texture array
-                let layer_texture_array = LayerTextureArray {
-                    texture_array,
-                    texture_bind_group,
-                    loaded_texture_to_index: HashMap::new(),
-                    loaded_texture_count: 0,
-                };
-                self.layer_texture_arrays.insert(layer, layer_texture_array);
-
-                // Since we just inserted it, there's no way for it to be missing
-                self.layer_texture_arrays.get_mut(&layer).unwrap()
-            }
-        };
-
-        // Check whether texture is already loaded in the layer texture array
-        let texture_index = match layer_texture_array
-            .loaded_texture_to_index
-            .get(texture_file_name)
-        {
-            Some(texture_index) => *texture_index,
-            None => {
-                load_texture(
-                    &layer_texture_array.texture_array,
-                    texture_file_name,
-                    layer_texture_array.loaded_texture_count as u32,
-                    queue,
-                )?;
-
-                let texture_index = layer_texture_array.loaded_texture_count;
-                assert!(texture_index < self.max_loaded_texture_count as usize);
-
-                // Update management state so that we can track how many textures have loaded
-                layer_texture_array
-                    .loaded_texture_to_index
-                    .insert(texture_file_name.to_owned(), texture_index);
-                layer_texture_array.loaded_texture_count += 1;
-
-                texture_index
-            }
-        };
-
-        self.textured_quads.push(TexturedQuad {
+    ) {
+        let texture_handle = self
+            .texture_manager
+            .load_texture(
+                texture_file_name,
+                &self.texture_bind_group_layout,
+                device,
+                queue,
+            )
+            .unwrap();
+        let textured_quad = TexturedQuad {
             position,
             dimensions,
             layer,
-            texture_index: texture_index as u32,
-        });
-        Ok(())
+            texture_handle,
+        };
+        self.textured_quads.push(textured_quad);
     }
 }
 
-/// Load a texture into a texture array
-fn load_texture(
-    texture_array: &wgpu::Texture,
-    texture_file_name: &str,
-    index: u32,
-    queue: &wgpu::Queue,
-) -> anyhow::Result<()> {
-    let data_source_dir = env::var("DATA_SOURCE_DIR").unwrap();
-    let texture_path = Path::new(&data_source_dir).join(texture_file_name);
-    let mut texture_file = File::open(texture_path).unwrap();
+struct TextureManager {
+    loaded_textures: HashMap<String, usize>,
+    bind_groups: Vec<BindGroup>,
+    mipmapper: Mipmapper,
+}
 
-    let mut texture_bytes = vec![];
-    texture_file.read_to_end(&mut texture_bytes).unwrap();
-    let texture_image =
-        image::load_from_memory(texture_bytes.as_bytes()).context("Failed to load texture")?;
-    let diffuse_rgba = texture_image.to_rgba8();
-    let dimensions = texture_image.dimensions();
+#[derive(Copy, Clone)]
+struct TextureHandle {
+    index: usize,
+}
 
-    assert!(dimensions.0 == texture_array.width() && dimensions.1 == texture_array.height());
-    let single_texture_size = Extent3d {
-        width: dimensions.0,
-        height: dimensions.1,
-        depth_or_array_layers: 1,
-    };
+impl TextureManager {
+    fn new(device: &wgpu::Device) -> Self {
+        Self {
+            mipmapper: Mipmapper::new(device),
+            loaded_textures: HashMap::new(),
+            bind_groups: vec![],
+        }
+    }
 
-    queue.write_texture(
-        TexelCopyTextureInfo {
-            texture: &texture_array,
-            mip_level: 0,
-            origin: Origin3d {
-                x: 0,
-                y: 0,
-                z: index,
-            },
-            aspect: TextureAspect::All,
-        },
-        &diffuse_rgba,
-        TexelCopyBufferLayout {
-            offset: 0,
-            bytes_per_row: Some(4 * dimensions.0),
-            rows_per_image: Some(dimensions.1),
-        },
-        single_texture_size,
-    );
+    fn load_texture(
+        &mut self,
+        texture_file_name: &str,
+        texture_bind_group_layout: &BindGroupLayout,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) -> anyhow::Result<TextureHandle> {
+        // TODO: handle case where we have too many textures in memory
+        // Check if the texture is already loaded
+        match self.loaded_textures.get(texture_file_name) {
+            Some(texture_index) => Ok(TextureHandle {
+                index: *texture_index,
+            }),
+            None => {
+                let data_dir = env::var("DATA_DIR").unwrap();
+                let texture_path = Path::new(&data_dir).join(texture_file_name);
+                let mut texture_file = File::open(texture_path).unwrap();
 
-    Ok(())
+                let mut buffer =
+                    Vec::<u8>::with_capacity(texture_file.metadata().unwrap().len() as usize);
+                texture_file.read_to_end(&mut buffer).unwrap();
+
+                let image = image::load_from_memory(&buffer).context("Failed to load texture")?;
+                let diffuse_rgba = image.to_rgba8();
+                let dimensions = image.dimensions();
+                let texture_size = Extent3d {
+                    width: dimensions.0,
+                    height: dimensions.1,
+                    depth_or_array_layers: 1,
+                };
+                let mip_level_count = texture_size.width.min(texture_size.height).ilog2();
+                let texture = device.create_texture(&TextureDescriptor {
+                    label: Some(&format!("{} Texture", texture_file_name)),
+                    size: texture_size,
+                    mip_level_count: mip_level_count,
+                    sample_count: 1,
+                    dimension: TextureDimension::D2,
+                    format: TextureFormat::Rgba8UnormSrgb,
+                    usage: TextureUsages::TEXTURE_BINDING
+                        | TextureUsages::COPY_SRC
+                        | TextureUsages::COPY_DST,
+                    view_formats: &[],
+                });
+
+                queue.write_texture(
+                    TexelCopyTextureInfo {
+                        texture: &texture,
+                        mip_level: 0,
+                        origin: Origin3d::ZERO,
+                        aspect: TextureAspect::All,
+                    },
+                    &diffuse_rgba,
+                    TexelCopyBufferLayout {
+                        offset: 0,
+                        bytes_per_row: Some(4 * dimensions.0),
+                        rows_per_image: Some(dimensions.1),
+                    },
+                    texture_size,
+                );
+
+                let texture_view = texture.create_view(&TextureViewDescriptor::default());
+                let sampler = device.create_sampler(&SamplerDescriptor {
+                    label: Some(&format!("{} Sampler", texture_file_name)),
+                    address_mode_u: AddressMode::ClampToEdge,
+                    address_mode_v: AddressMode::ClampToEdge,
+                    address_mode_w: AddressMode::ClampToEdge,
+                    mag_filter: FilterMode::Linear,
+                    min_filter: FilterMode::Nearest,
+                    mipmap_filter: MipmapFilterMode::Nearest,
+                    ..Default::default()
+                });
+
+                let bind_group = device.create_bind_group(&BindGroupDescriptor {
+                    label: Some(&format!("{} Bind Group", texture_file_name)),
+                    layout: texture_bind_group_layout,
+                    entries: &[
+                        BindGroupEntry {
+                            binding: 0,
+                            resource: BindingResource::TextureView(&texture_view),
+                        },
+                        BindGroupEntry {
+                            binding: 1,
+                            resource: BindingResource::Sampler(&sampler),
+                        },
+                    ],
+                });
+
+                // Set up mip maps
+                self.mipmapper.blit_mipmaps(device, queue, &texture);
+
+                // Get the index
+                let bind_group_index = self.bind_groups.len();
+
+                self.loaded_textures
+                    .insert(texture_file_name.to_owned(), bind_group_index);
+                self.bind_groups.push(bind_group);
+
+                Ok(TextureHandle {
+                    index: bind_group_index,
+                })
+            }
+        }
+    }
+
+    fn get_bind_group(&self, handle: &TextureHandle) -> Option<&BindGroup> {
+        self.bind_groups.get(handle.index)
+    }
 }

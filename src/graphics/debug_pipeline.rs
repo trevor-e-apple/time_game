@@ -3,15 +3,14 @@ use std::mem;
 use cgmath::{Matrix3, Vector2};
 use wgpu::{
     BindGroup, BindGroupLayout, BlendState, BufferDescriptor, BufferUsages, ColorTargetState,
-    ColorWrites, CompareFunction, DepthBiasState, DepthStencilState, Device, Face, FragmentState,
-    FrontFace, IndexFormat, MultisampleState, PipelineCompilationOptions, PipelineLayoutDescriptor,
-    PolygonMode, PrimitiveState, PrimitiveTopology, RenderPass, RenderPipeline,
-    RenderPipelineDescriptor, StencilState, SurfaceConfiguration, VertexAttribute,
-    VertexBufferLayout, VertexFormat, VertexState, VertexStepMode,
+    ColorWrites, Device, Face, FragmentState, FrontFace, IndexFormat, MultisampleState,
+    PipelineCompilationOptions, PipelineLayoutDescriptor, PolygonMode, PrimitiveState,
+    PrimitiveTopology, RenderPass, RenderPipeline, RenderPipelineDescriptor, SurfaceConfiguration,
+    VertexAttribute, VertexBufferLayout, VertexFormat, VertexState, VertexStepMode,
     util::{BufferInitDescriptor, DeviceExt},
 };
 
-use crate::graphics::{common_models::SQUARE_INDICES, shader::load_shader, texture};
+use crate::graphics::{common_models::SQUARE_INDICES, shader::load_shader};
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -187,8 +186,8 @@ impl DebugPipeline {
                     mask: !0,
                     alpha_to_coverage_enabled: false,
                 },
-                multiview_mask: None,
                 cache: None,
+                multiview_mask: None,
             });
 
             pipeline
@@ -266,7 +265,6 @@ impl DebugPipeline {
             render_pass.draw(0..3, 0..self.triangles.num_instances);
         }
 
-        // Clear instances for the next push buffer cycle that
         self.squares.num_instances = 0;
         self.triangles.num_instances = 0;
     }

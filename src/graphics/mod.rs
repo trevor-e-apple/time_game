@@ -1,6 +1,7 @@
 pub mod camera;
 pub mod common_models; // TODO: probably don't reexport this
 mod debug_pipeline;
+mod mipmapper;
 mod shader;
 mod texture;
 pub mod textured_pipeline; // TODO: probably don't reexport this
@@ -202,8 +203,7 @@ impl GraphicsState {
             });
 
             self.textured_pipeline.render(
-                &self.device,
-                &self.queue,
+                &mut self.queue,
                 &mut render_pass,
                 &self.camera_bind_group,
             );
@@ -223,7 +223,7 @@ impl GraphicsState {
         dimensions: Vector2<f32>,
         layer: u32,
         texture_file_name: &str,
-    ) -> anyhow::Result<()> {
+    ) {
         self.textured_pipeline.push_textured_quad(
             position,
             dimensions,
