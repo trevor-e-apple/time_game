@@ -461,7 +461,7 @@ impl TextureManager {
                 });
 
                 // Set up mip maps
-                self.mipmapper.blit_mipmaps(device, queue, &texture);
+                self.mipmapper.blit_mipmaps(device, queue, &texture)?;
 
                 // Get the index
                 let bind_group_index = self.bind_groups.len();

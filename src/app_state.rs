@@ -9,12 +9,32 @@ use crate::graphics::GraphicsState;
 use cgmath::Vector2;
 use winit::{dpi::LogicalSize, window::Window};
 
+/// For tracking the last n frame times
+struct FrameTimeBuffer {
+    frame_times: [Duration; 1024],
+    frame_time_counter: usize,
+}
+
+impl FrameTimeBuffer {
+    fn new() -> Self {
+        Self {
+            frame_times: [Duration::new(0, 0); 1024],
+            frame_time_counter: 0,
+        }
+    }
+    fn add_frame(&mut self, frame_time: Duration) {
+        self.frame_times[self.frame_time_counter % self.frame_times.len()] = frame_time;
+        self.frame_time_counter += 1;
+    }
+}
+
 pub struct AppState {
     window: Arc<Window>, // We need window to be an Arc so that the surface can hold a reference to it
     graphics_state: GraphicsState,
     start_time: Instant,
-    frame_time: Duration, // ns
+    target_frame_time: Duration, // ns
     logical_size: LogicalSize<f32>,
+    frame_time_buffer: FrameTimeBuffer,
 }
 
 impl AppState {
@@ -30,7 +50,8 @@ impl AppState {
             graphics_state,
             logical_size,
             start_time: Instant::now(),
-            frame_time: Duration::from_millis(Self::DEFAULT_FRAME_TIME_MS),
+            target_frame_time: Duration::from_millis(Self::DEFAULT_FRAME_TIME_MS),
+            frame_time_buffer: FrameTimeBuffer::new(),
         })
     }
 
@@ -113,13 +134,16 @@ impl AppState {
             let end_time = Instant::now();
             let duration = end_time - self.start_time;
 
-            // TODO: better logging
+            // TODO: conditional compilation?
             println!("Frame time: {} us", duration.as_micros());
 
-            if self.frame_time > duration {
-                let sleep_time = self.frame_time - duration;
+            if self.target_frame_time > duration {
+                let sleep_time = self.target_frame_time - duration;
                 thread::sleep(sleep_time);
             }
+
+            // TODO: conditional compilation?
+            self.frame_time_buffer.add_frame(duration);
         }
         Ok(())
     }
