@@ -79,7 +79,7 @@ const SQUARE_VERTICES: &[Vertex2] = &[
     },
 ];
 
-/// The definition of the instance in the instance buffer used by wgpu. Contains
+/// The definition of an instance in the instance buffer used by wgpu. Contains
 /// a 3x3 matrix representing the translation, scale, and rotation for the instance.
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -88,6 +88,13 @@ struct InstanceRaw {
 }
 
 impl InstanceRaw {
+    /// Returns a new instance of InstanceRaw
+    ///
+    /// position: The position of the center of the instance
+    ///
+    /// scale: The dimensions of the instance
+    ///
+    /// rotation: The rotation of the instance
     fn new(position: Vector2<f32>, scale: Vector2<f32>, rotation: cgmath::Rad<f32>) -> Self {
         Self {
             model: (Matrix3::from_translation(position)
@@ -96,6 +103,7 @@ impl InstanceRaw {
             .into(),
         }
     }
+
     /// Returns the wgpu buffer layout for InstanceRAw. If the definiton of
     /// InstanceRaw changes, then this function should be updated. If the
     /// shader changes the location of these attributes, then this function
