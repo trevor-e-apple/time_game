@@ -135,7 +135,6 @@ impl InstanceRaw {
 
 struct Quads {
     vertex_buffer: wgpu::Buffer,
-    num_vertices: u32,
     index_buffer: wgpu::Buffer,
     num_indices: u32,
     instance_buffer: wgpu::Buffer,
@@ -261,7 +260,6 @@ impl TexturedPipeline {
 
             Quads {
                 vertex_buffer,
-                num_vertices: SQUARE_VERTICES.len() as u32,
                 index_buffer,
                 num_indices: SQUARE_INDICES.len() as u32,
                 instance_buffer,
