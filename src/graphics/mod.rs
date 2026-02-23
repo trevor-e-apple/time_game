@@ -18,6 +18,7 @@ use wgpu::{
     TextureViewDescriptor,
     util::{BufferInitDescriptor, DeviceExt},
 };
+use wgpu_text::BrushBuilder;
 use winit::{dpi::LogicalSize, window::Window};
 
 use crate::graphics::{
@@ -130,6 +131,17 @@ impl GraphicsState {
                 resource: camera_buffer.as_entire_binding(),
             }],
         });
+
+        {
+            let font = include_bytes!("../../data/DejaVuSans.ttf");
+            let brush = Some(BrushBuilder::using_font_bytes(font).unwrap().build(
+                &device,
+                config.width,
+                config.height,
+                config.format,
+            ));
+            todo!("More work on testing fonts");
+        }
 
         let textured_pipeline = TexturedPipeline::new(&device, &camera_bind_group_layout, &config)
             .context("Failed to make textured pipeline")?;

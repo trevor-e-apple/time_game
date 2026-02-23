@@ -7,6 +7,7 @@ use std::{
 use crate::graphics::GraphicsState;
 
 use cgmath::Vector2;
+use wgpu_text::BrushBuilder;
 use winit::{dpi::LogicalSize, window::Window};
 
 /// For tracking the last n frame times
