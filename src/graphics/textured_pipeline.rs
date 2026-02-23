@@ -140,7 +140,7 @@ struct Quads {
     num_indices: u32,
     instance_buffer: wgpu::Buffer,
     num_instances: u32,
-    max_instances: usize,
+    max_instances: u32,
 }
 
 #[derive(Copy, Clone)]
@@ -266,7 +266,7 @@ impl TexturedPipeline {
                 num_indices: SQUARE_INDICES.len() as u32,
                 instance_buffer,
                 num_instances: 0,
-                max_instances: MAX_QUADS,
+                max_instances: MAX_QUADS as u32,
             }
         };
 
@@ -301,6 +301,7 @@ impl TexturedPipeline {
                     bytemuck::cast_slice(&[instance]),
                 );
                 self.quads.num_instances += 1;
+                assert!(self.quads.num_instances < self.quads.max_instances);
             }
         }
 
