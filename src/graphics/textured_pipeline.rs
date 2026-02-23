@@ -23,14 +23,23 @@ use crate::graphics::{common_models::SQUARE_INDICES, shader::load_shader};
 
 const MAX_QUADS: usize = 1024;
 
+/// An entry in the vertex buffer that the textured_pipeline uses
+///
+/// position: The position of the vertex in model space.
+///
+/// tex_coords: The uv coordinates of the vertex
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct Vertex2 {
-    pub position: [f32; 2],
-    pub tex_coords: [f32; 2],
+struct Vertex2 {
+    position: [f32; 2],
+    tex_coords: [f32; 2],
 }
 
 impl Vertex2 {
+    /// Returns the wgpu buffer layout for Vertex2. If the definition of
+    /// Vertex2 is changed, then this function should be updated. If the
+    /// shader changes the locations of these attributes, this function
+    /// should be updated.
     pub fn buffer_layout() -> VertexBufferLayout<'static> {
         VertexBufferLayout {
             array_stride: std::mem::size_of::<Vertex2>() as wgpu::BufferAddress,
@@ -51,7 +60,7 @@ impl Vertex2 {
     }
 }
 
-pub const SQUARE_VERTICES: &[Vertex2] = &[
+const SQUARE_VERTICES: &[Vertex2] = &[
     Vertex2 {
         position: [-0.5, 0.5],
         tex_coords: [0.0, 0.0],
@@ -70,13 +79,8 @@ pub const SQUARE_VERTICES: &[Vertex2] = &[
     },
 ];
 
-pub struct TexturedInstance {
-    pub position: Vector2<f32>,
-    pub scale: Vector2<f32>,
-    pub rotation: cgmath::Rad<f32>,
-}
-
-// TODO: does this need to be public?
+/// The definition of the instance in the instance buffer used by wgpu. Contains
+/// a 3x3 matrix representing the translation, scale, and rotation for the instance.
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 struct InstanceRaw {
@@ -84,6 +88,18 @@ struct InstanceRaw {
 }
 
 impl InstanceRaw {
+    fn new(position: Vector2<f32>, scale: Vector2<f32>, rotation: cgmath::Rad<f32>) -> Self {
+        Self {
+            model: (Matrix3::from_translation(position)
+                * Matrix3::from_angle_z(rotation)
+                * Matrix3::from_nonuniform_scale(scale.x, scale.y))
+            .into(),
+        }
+    }
+    /// Returns the wgpu buffer layout for InstanceRAw. If the definiton of
+    /// InstanceRaw changes, then this function should be updated. If the
+    /// shader changes the location of these attributes, then this function
+    /// should be updated.
     fn buffer_layout() -> wgpu::VertexBufferLayout<'static> {
         wgpu::VertexBufferLayout {
             array_stride: mem::size_of::<InstanceRaw>() as wgpu::BufferAddress,
@@ -105,17 +121,6 @@ impl InstanceRaw {
                     format: wgpu::VertexFormat::Float32x3,
                 },
             ],
-        }
-    }
-}
-
-impl TexturedInstance {
-    fn to_raw(&self) -> InstanceRaw {
-        InstanceRaw {
-            model: (Matrix3::from_translation(self.position)
-                * Matrix3::from_angle_z(self.rotation)
-                * Matrix3::from_nonuniform_scale(self.scale.x, self.scale.y))
-            .into(),
         }
     }
 }
@@ -280,16 +285,12 @@ impl TexturedPipeline {
             // Write quads to instance buffer
             // TODO: draw collections of quads on the same layer with the same texture as a single draw instruction
             for quad in &self.textured_quads {
-                let instance = TexturedInstance {
-                    position: quad.position,
-                    scale: quad.dimensions,
-                    rotation: cgmath::Rad(0.0),
-                };
+                let instance = InstanceRaw::new(quad.position, quad.dimensions, cgmath::Rad(0.0));
                 queue.write_buffer(
                     &self.quads.instance_buffer,
                     (self.quads.num_instances as usize * mem::size_of::<InstanceRaw>())
                         as wgpu::BufferAddress,
-                    bytemuck::cast_slice(&[instance.to_raw()]),
+                    bytemuck::cast_slice(&[instance]),
                 );
                 self.quads.num_instances += 1;
             }
