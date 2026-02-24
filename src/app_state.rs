@@ -36,6 +36,8 @@ pub struct AppState<'a> {
     target_frame_time: Duration, // ns
     logical_size: LogicalSize<f32>,
     frame_time_buffer: FrameTimeBuffer,
+
+    terminal_state: TerminalState,
 }
 
 impl AppState<'_> {
