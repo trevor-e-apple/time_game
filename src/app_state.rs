@@ -29,16 +29,16 @@ impl FrameTimeBuffer {
     }
 }
 
-pub struct AppState {
+pub struct AppState<'a> {
     window: Arc<Window>, // We need window to be an Arc so that the surface can hold a reference to it
-    graphics_state: GraphicsState,
+    graphics_state: GraphicsState<'a>,
     start_time: Instant,
     target_frame_time: Duration, // ns
     logical_size: LogicalSize<f32>,
     frame_time_buffer: FrameTimeBuffer,
 }
 
-impl AppState {
+impl AppState<'_> {
     const DEFAULT_FRAME_TIME_MS: u64 = 16;
     /// Function is async because some wgpu functions are async
     pub async fn resumed(window: Arc<Window>) -> anyhow::Result<Self> {

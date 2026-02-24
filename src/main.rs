@@ -13,11 +13,11 @@ use winit::{
     window::Window,
 };
 
-struct App {
-    state: Option<AppState>, // We use option at the top level so that all of app state can be initialized together
+struct App<'a> {
+    state: Option<AppState<'a>>, // We use option at the top level so that all of app state can be initialized together
 }
 
-impl ApplicationHandler for App {
+impl ApplicationHandler for App<'_> {
     fn window_event(
         &mut self,
         event_loop: &ActiveEventLoop,
