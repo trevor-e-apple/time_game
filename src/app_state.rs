@@ -4,11 +4,11 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::graphics::GraphicsState;
+use crate::{graphics::GraphicsState, terminal_state::TerminalState};
 
 use cgmath::Vector2;
 use wgpu_text::BrushBuilder;
-use winit::{dpi::LogicalSize, window::Window};
+use winit::{dpi::LogicalSize, event::KeyEvent, window::Window};
 
 /// For tracking the last n frame times
 struct FrameTimeBuffer {
@@ -55,6 +55,7 @@ impl AppState<'_> {
             start_time: Instant::now(),
             target_frame_time: Duration::from_millis(Self::DEFAULT_FRAME_TIME_MS),
             frame_time_buffer: FrameTimeBuffer::new(),
+            terminal_state: TerminalState::new(),
         })
     }
 
@@ -149,5 +150,9 @@ impl AppState<'_> {
             self.frame_time_buffer.add_frame(duration);
         }
         Ok(())
+    }
+
+    pub fn keyboard_input(&mut self, event: KeyEvent) {
+        self.terminal_state.keyboard_input(event);
     }
 }

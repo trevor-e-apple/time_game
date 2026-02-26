@@ -1,6 +1,6 @@
 use winit::{
     event::{KeyEvent, WindowEvent},
-    keyboard::Key,
+    keyboard::{Key, NamedKey},
 };
 
 pub struct TerminalState {
@@ -16,14 +16,39 @@ impl TerminalState {
         }
     }
 
-    pub fn keyboard_input(event: KeyEvent) {
+    pub fn keyboard_input(&mut self, event: KeyEvent) {
         let logical_key = event.logical_key;
         let state = event.state;
-        match logical_key {
-            Key::Named(named_key) => todo!(),
-            Key::Character(_) => todo!(),
-            Key::Unidentified(native_key) => todo!(),
-            Key::Dead(_) => todo!(),
+        if self.active {
+            match logical_key {
+                Key::Named(k) => match k {
+                    NamedKey::Delete => {
+                        todo!();
+                    }
+                    NamedKey::Backspace => {
+                        self.text.pop();
+                    }
+                    _ => {}
+                },
+                Key::Character(char) => {
+                    let c = char.as_str();
+                    self.text.push_str(c);
+                }
+                Key::Unidentified(_) => todo!(),
+                Key::Dead(_) => todo!(),
+            }
+        } else {
+            match logical_key {
+                Key::Named(_) => {}
+                Key::Character(char) => {
+                    let c = char.as_str();
+                    if c == "`" {
+                        self.active = true;
+                    }
+                }
+                Key::Unidentified(_) => {}
+                Key::Dead(_) => {}
+            }
         }
     }
 }

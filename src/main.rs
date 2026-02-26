@@ -43,19 +43,22 @@ impl ApplicationHandler for App<'_> {
                 state.render().unwrap();
             }
             WindowEvent::KeyboardInput {
-                event:
-                    KeyEvent {
-                        physical_key: PhysicalKey::Code(code),
-                        state: key_state,
-                        ..
-                    },
-                ..
-            } => match (code, key_state.is_pressed()) {
-                (KeyCode::Escape, true) => {
-                    event_loop.exit();
+                event: key_event, ..
+            } => {
+                let code = match key_event.physical_key {
+                    PhysicalKey::Code(key_code) => key_code,
+                    PhysicalKey::Unidentified(_) => todo!("We may want to ignore this entirely"),
+                };
+                let key_state = key_event.state;
+                match (code, key_state.is_pressed()) {
+                    (KeyCode::Escape, true) => {
+                        event_loop.exit();
+                    }
+                    _ => {
+                        state.keyboard_input(key_event);
+                    }
                 }
-                _ => {}
-            },
+            }
             _ => (),
         }
     }
