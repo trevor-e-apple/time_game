@@ -1,25 +1,25 @@
 use winit::{
-    event::{KeyEvent, WindowEvent},
+    event::KeyEvent,
     keyboard::{Key, NamedKey},
 };
 
 pub struct TerminalState {
     text: String,
-    active: bool,
+    has_focus: bool,
 }
 
 impl TerminalState {
     pub fn new() -> Self {
         Self {
             text: String::new(),
-            active: false,
+            has_focus: false,
         }
     }
 
     pub fn keyboard_input(&mut self, event: KeyEvent) {
         let logical_key = event.logical_key;
         let state = event.state;
-        if self.active {
+        if self.has_focus {
             match logical_key {
                 Key::Named(k) => match k {
                     NamedKey::Delete => {
@@ -27,6 +27,9 @@ impl TerminalState {
                     }
                     NamedKey::Backspace => {
                         self.text.pop();
+                    }
+                    NamedKey::Escape => {
+                        self.has_focus = false;
                     }
                     _ => {}
                 },
@@ -43,7 +46,7 @@ impl TerminalState {
                 Key::Character(char) => {
                     let c = char.as_str();
                     if c == "`" {
-                        self.active = true;
+                        self.has_focus = true;
                     }
                 }
                 Key::Unidentified(_) => {}

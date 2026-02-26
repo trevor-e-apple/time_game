@@ -5,6 +5,7 @@ mod mipmapper;
 mod shader;
 mod texture;
 pub mod textured_pipeline; // TODO: probably don't reexport this
+mod ui;
 
 use std::sync::Arc;
 
@@ -18,14 +19,11 @@ use wgpu::{
     TextureViewDescriptor,
     util::{BufferInitDescriptor, DeviceExt},
 };
-use wgpu_text::{
-    BrushBuilder, TextBrush,
-    glyph_brush::{self, ab_glyph::FontRef},
-};
 use winit::{dpi::LogicalSize, window::Window};
 
 use crate::graphics::{
     camera::Camera2DUniform, debug_pipeline::DebugPipeline, textured_pipeline::TexturedPipeline,
+    ui::UI,
 };
 
 pub struct GraphicsState<'a> {
@@ -42,8 +40,7 @@ pub struct GraphicsState<'a> {
     textured_pipeline: TexturedPipeline,
     debug_pipeline: DebugPipeline,
 
-    brush: TextBrush<FontRef<'a>>,
-    section_0: glyph_brush::OwnedSection,
+    ui: UI<'a>,
 }
 
 impl GraphicsState<'_> {
@@ -138,30 +135,6 @@ impl GraphicsState<'_> {
             }],
         });
 
-        let (brush, section_0) = {
-            let font = include_bytes!("../../data/DejaVuSans.ttf");
-            let brush = Some(BrushBuilder::using_font_bytes(font).unwrap().build(
-                &device,
-                config.width,
-                config.height,
-                config.format,
-            ))
-            .unwrap();
-            let section_0 = glyph_brush::Section::default()
-                .add_text(glyph_brush::Text::new(
-                    "try typing some text\n del, backspace",
-                ))
-                .with_bounds((config.width as f32 * 0.4, config.height as f32))
-                .with_layout(
-                    glyph_brush::Layout::default()
-                        .v_align(glyph_brush::VerticalAlign::Center)
-                        .line_breaker(glyph_brush::BuiltInLineBreaker::AnyCharLineBreaker),
-                )
-                .with_screen_position((50.0, config.height as f32 * 0.5))
-                .to_owned();
-            (brush, section_0)
-        };
-
         let textured_pipeline = TexturedPipeline::new(&device, &camera_bind_group_layout, &config)
             .context("Failed to make textured pipeline")?;
         let debug_pipeline = DebugPipeline::new(&device, &config, &camera_bind_group_layout);
@@ -177,8 +150,6 @@ impl GraphicsState<'_> {
             camera_bind_group,
             textured_pipeline,
             debug_pipeline,
-            brush,
-            section_0,
         })
     }
 
@@ -245,10 +216,7 @@ impl GraphicsState<'_> {
             self.debug_pipeline
                 .render(&mut render_pass, &self.camera_bind_group);
 
-            self.brush
-                .queue(&self.device, &self.queue, [&self.section_0])
-                .unwrap();
-            self.brush.draw(&mut render_pass);
+            self.ui.render();
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
