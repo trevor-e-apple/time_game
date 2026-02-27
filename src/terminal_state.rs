@@ -4,15 +4,23 @@ use winit::{
 };
 
 pub struct TerminalState {
-    text: String,
+    pub text: String,
     has_focus: bool,
+    pub width: f32,
+    pub height: f32,
+    pub x: f32,
+    pub y: f32,
 }
 
 impl TerminalState {
-    pub fn new() -> Self {
+    pub fn new(width: f32, height: f32, x: f32, y: f32) -> Self {
         Self {
             text: String::new(),
             has_focus: false,
+            width,
+            height,
+            x,
+            y,
         }
     }
 
@@ -28,14 +36,19 @@ impl TerminalState {
                     NamedKey::Backspace => {
                         self.text.pop();
                     }
+                    NamedKey::Space => {
+                        self.text.push(' ');
+                    }
                     NamedKey::Escape => {
                         self.has_focus = false;
                     }
                     _ => {}
                 },
                 Key::Character(char) => {
-                    let c = char.as_str();
-                    self.text.push_str(c);
+                    if state.is_pressed() {
+                        let c = char.as_str();
+                        self.text.push_str(c);
+                    }
                 }
                 Key::Unidentified(_) => todo!(),
                 Key::Dead(_) => todo!(),

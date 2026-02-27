@@ -29,7 +29,7 @@ impl UI<'_> {
         }
     }
 
-    pub fn add_text(&mut self, text: &String, width: f32, height: f32, x: f32, y: f32) {
+    pub fn push_text(&mut self, text: &String, width: f32, height: f32, x: f32, y: f32) {
         let section = glyph_brush::Section::default()
             .add_text(glyph_brush::Text::new(text))
             .with_bounds((width, height))
@@ -51,5 +51,6 @@ impl UI<'_> {
     ) {
         self.brush.queue(device, queue, &self.sections).unwrap();
         self.brush.draw(render_pass);
+        self.sections.clear();
     }
 }

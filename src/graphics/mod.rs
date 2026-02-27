@@ -138,6 +138,7 @@ impl GraphicsState<'_> {
         let textured_pipeline = TexturedPipeline::new(&device, &camera_bind_group_layout, &config)
             .context("Failed to make textured pipeline")?;
         let debug_pipeline = DebugPipeline::new(&device, &config, &camera_bind_group_layout);
+        let ui = UI::new(&device, &config);
 
         Ok(Self {
             window,
@@ -150,6 +151,7 @@ impl GraphicsState<'_> {
             camera_bind_group,
             textured_pipeline,
             debug_pipeline,
+            ui,
         })
     }
 
@@ -216,7 +218,7 @@ impl GraphicsState<'_> {
             self.debug_pipeline
                 .render(&mut render_pass, &self.camera_bind_group);
 
-            self.ui.render();
+            self.ui.render(&mut render_pass, &self.device, &self.queue);
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
@@ -261,5 +263,9 @@ impl GraphicsState<'_> {
     ) {
         self.debug_pipeline
             .push_triangle(&self.queue, position, scale, rotation, color);
+    }
+
+    pub fn push_text(&mut self, text: &String, width: f32, height: f32, x: f32, y: f32) {
+        self.ui.push_text(text, width, height, x, y)
     }
 }

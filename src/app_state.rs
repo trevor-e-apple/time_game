@@ -55,7 +55,7 @@ impl AppState<'_> {
             start_time: Instant::now(),
             target_frame_time: Duration::from_millis(Self::DEFAULT_FRAME_TIME_MS),
             frame_time_buffer: FrameTimeBuffer::new(),
-            terminal_state: TerminalState::new(),
+            terminal_state: TerminalState::new(logical_size.width, logical_size.height, 0.0, 0.0),
         })
     }
 
@@ -127,6 +127,14 @@ impl AppState<'_> {
                 (0.0, 1.0, 1.0),
             );
         }
+
+        self.graphics_state.push_text(
+            &self.terminal_state.text,
+            self.terminal_state.width,
+            self.terminal_state.height,
+            self.terminal_state.x,
+            self.terminal_state.y,
+        );
     }
 
     pub fn render(&mut self) -> anyhow::Result<()> {
