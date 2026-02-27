@@ -34,9 +34,7 @@ impl UI<'_> {
             .add_text(glyph_brush::Text::new(text))
             .with_bounds((width, height))
             .with_layout(
-                glyph_brush::Layout::default()
-                    .v_align(glyph_brush::VerticalAlign::Center)
-                    .line_breaker(glyph_brush::BuiltInLineBreaker::AnyCharLineBreaker),
+                glyph_brush::Layout::default_single_line().v_align(glyph_brush::VerticalAlign::Top),
             )
             .with_screen_position((x, y))
             .to_owned();
