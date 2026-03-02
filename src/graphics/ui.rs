@@ -29,9 +29,17 @@ impl UI<'_> {
         }
     }
 
-    pub fn push_text(&mut self, text: &String, width: f32, height: f32, x: f32, y: f32) {
+    pub fn push_text(
+        &mut self,
+        text: &String,
+        width: f32,
+        height: f32,
+        x: f32,
+        y: f32,
+        color: (f32, f32, f32),
+    ) {
         let section = glyph_brush::Section::default()
-            .add_text(glyph_brush::Text::new(text))
+            .add_text(glyph_brush::Text::new(text).with_color((color.0, color.1, color.2, 1.0)))
             .with_bounds((width, height))
             .with_layout(
                 glyph_brush::Layout::default_single_line().v_align(glyph_brush::VerticalAlign::Top),

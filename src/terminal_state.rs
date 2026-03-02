@@ -5,7 +5,7 @@ use winit::{
 
 pub struct TerminalState {
     pub text: String,
-    has_focus: bool,
+    pub has_focus: bool,
     pub width: f32,
     pub height: f32,
     pub x: f32,

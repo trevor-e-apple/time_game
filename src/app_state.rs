@@ -128,13 +128,29 @@ impl AppState<'_> {
             );
         }
 
-        self.graphics_state.push_text(
-            &self.terminal_state.text,
-            self.terminal_state.width,
-            self.terminal_state.height,
-            self.terminal_state.x,
-            self.terminal_state.y,
-        );
+        if self.terminal_state.has_focus {
+            // TODO: this should probably live with the terminal code
+            // self.graphics_state.push_debug_square(
+            //     Vector2 {
+            //         x: self.terminal_state.x,
+            //         y: self.terminal_state.y,
+            //     },
+            //     Vector2 {
+            //         x: self.terminal_state.width,
+            //         y: self.terminal_state.height,
+            //     },
+            //     0.0,
+            //     (0.0, 0.0, 0.0),
+            // );
+            self.graphics_state.push_text(
+                &self.terminal_state.text,
+                self.terminal_state.width,
+                self.terminal_state.height,
+                self.terminal_state.x,
+                self.terminal_state.y,
+                (1.0, 1.0, 1.0),
+            );
+        }
     }
 
     pub fn render(&mut self) -> anyhow::Result<()> {

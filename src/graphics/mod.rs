@@ -265,7 +265,15 @@ impl GraphicsState<'_> {
             .push_triangle(&self.queue, position, scale, rotation, color);
     }
 
-    pub fn push_text(&mut self, text: &String, width: f32, height: f32, x: f32, y: f32) {
-        self.ui.push_text(text, width, height, x, y)
+    pub fn push_text(
+        &mut self,
+        text: &String,
+        width: f32,
+        height: f32,
+        x: f32,
+        y: f32,
+        color: (f32, f32, f32),
+    ) {
+        self.ui.push_text(text, width, height, x, y, color)
     }
 }
