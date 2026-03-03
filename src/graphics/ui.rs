@@ -1,16 +1,31 @@
-use wgpu::{RenderPass, SurfaceConfiguration};
+use cgmath::Vector2;
+use wgpu::{
+    BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor,
+    BindGroupLayoutEntry, BindingType, BufferBindingType, BufferUsages, RenderPass, ShaderStages,
+    SurfaceConfiguration,
+    util::{BufferInitDescriptor, DeviceExt},
+};
 use wgpu_text::{
     BrushBuilder, TextBrush,
     glyph_brush::{self, OwnedSection, ab_glyph::FontRef},
 };
+use winit::dpi::LogicalSize;
+
+use crate::graphics::{camera::Camera2DUniform, debug_pipeline::DebugPipeline};
 
 pub struct UI<'a> {
     brush: TextBrush<FontRef<'a>>,
     sections: Vec<OwnedSection>,
+    primitive_pipeline: DebugPipeline,
+    camera_bind_group: BindGroup, // Top left is origin
 }
 
 impl UI<'_> {
-    pub fn new(device: &wgpu::Device, config: &SurfaceConfiguration) -> Self {
+    pub fn new(
+        device: &wgpu::Device,
+        config: &SurfaceConfiguration,
+        logical_size: LogicalSize<f32>,
+    ) -> Self {
         let brush = {
             let font = include_bytes!("../../data/DejaVuSans.ttf");
             let brush = Some(BrushBuilder::using_font_bytes(font).unwrap().build(
@@ -23,9 +38,44 @@ impl UI<'_> {
 
             brush
         };
+
+        let camera = Camera2DUniform::new_top_left_origin(logical_size.width, logical_size.height);
+        let camera_buffer = device.create_buffer_init(&BufferInitDescriptor {
+            label: Some("Debug Camera Buffer"),
+            contents: bytemuck::cast_slice(&[camera]),
+            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+        });
+
+        let camera_bind_group_layout =
+            device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+                label: Some("UI Camera Bind Group Layout"),
+                entries: &[BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: ShaderStages::VERTEX,
+                    ty: BindingType::Buffer {
+                        ty: BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+            });
+
+        let camera_bind_group = device.create_bind_group(&BindGroupDescriptor {
+            label: Some("UI Camera Bind Group"),
+            layout: &camera_bind_group_layout,
+            entries: &[BindGroupEntry {
+                binding: 0,
+                resource: camera_buffer.as_entire_binding(),
+            }],
+        });
+        let primitive_pipeline = DebugPipeline::new(device, config, &camera_bind_group_layout);
+
         Self {
             sections: vec![],
             brush,
+            primitive_pipeline,
+            camera_bind_group,
         }
     }
 
@@ -49,12 +99,27 @@ impl UI<'_> {
         self.sections.push(section);
     }
 
+    pub fn push_square(
+        &mut self,
+        queue: &wgpu::Queue,
+        position: Vector2<f32>,
+        scale: Vector2<f32>,
+        rotation: f32,
+        color: (f32, f32, f32),
+    ) {
+        self.primitive_pipeline
+            .push_square(queue, position, scale, rotation, color)
+    }
+
     pub fn render(
         &mut self,
         render_pass: &mut RenderPass,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
     ) {
+        // TODO: z-buffering to allow intermixing
+        self.primitive_pipeline
+            .render(render_pass, &self.camera_bind_group);
         self.brush.queue(device, queue, &self.sections).unwrap();
         self.brush.draw(render_pass);
         self.sections.clear();

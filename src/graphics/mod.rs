@@ -104,7 +104,8 @@ impl GraphicsState<'_> {
         let scale_factor = window.scale_factor();
         let logical_size: LogicalSize<f32> = window_size.to_logical(scale_factor);
 
-        let camera = Camera2DUniform::new(logical_size.width, logical_size.height);
+        let camera =
+            Camera2DUniform::new_bottom_left_origin(logical_size.width, logical_size.height);
         let camera_buffer = device.create_buffer_init(&BufferInitDescriptor {
             label: Some("Debug Camera Buffer"),
             contents: bytemuck::cast_slice(&[camera]),
@@ -138,7 +139,7 @@ impl GraphicsState<'_> {
         let textured_pipeline = TexturedPipeline::new(&device, &camera_bind_group_layout, &config)
             .context("Failed to make textured pipeline")?;
         let debug_pipeline = DebugPipeline::new(&device, &config, &camera_bind_group_layout);
-        let ui = UI::new(&device, &config);
+        let ui = UI::new(&device, &config, logical_size);
 
         Ok(Self {
             window,
@@ -251,6 +252,17 @@ impl GraphicsState<'_> {
         color: (f32, f32, f32),
     ) {
         self.debug_pipeline
+            .push_square(&self.queue, position, scale, rotation, color);
+    }
+
+    pub fn push_ui_square(
+        &mut self,
+        position: Vector2<f32>,
+        scale: Vector2<f32>,
+        rotation: f32,
+        color: (f32, f32, f32),
+    ) {
+        self.ui
             .push_square(&self.queue, position, scale, rotation, color);
     }
 

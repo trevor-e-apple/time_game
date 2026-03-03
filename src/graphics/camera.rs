@@ -56,7 +56,7 @@ pub struct Camera2DUniform {
 }
 
 impl Camera2DUniform {
-    pub fn new(width: f32, height: f32) -> Self {
+    pub fn new_bottom_left_origin(width: f32, height: f32) -> Self {
         let mat4 = Matrix4::new(
             2.0 / width,
             0.0,
@@ -72,6 +72,31 @@ impl Camera2DUniform {
             0.0,
             -1.0,
             -1.0,
+            0.0,
+            1.0,
+        );
+
+        Self {
+            projection: mat4.into(),
+        }
+    }
+
+    pub fn new_top_left_origin(width: f32, height: f32) -> Self {
+        let mat4 = Matrix4::new(
+            2.0 / width,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            -2.0 / height,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            -1.0,
+            1.0,
             0.0,
             1.0,
         );
