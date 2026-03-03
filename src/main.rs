@@ -51,9 +51,6 @@ impl ApplicationHandler for App<'_> {
                 };
                 let key_state = key_event.state;
                 match (code, key_state.is_pressed()) {
-                    (KeyCode::Escape, true) => {
-                        event_loop.exit();
-                    }
                     _ => {
                         state.keyboard_input(key_event);
                     }
