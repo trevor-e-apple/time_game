@@ -54,12 +54,7 @@ impl AppState<'_> {
             start_time: Instant::now(),
             target_frame_time: Duration::from_millis(Self::DEFAULT_FRAME_TIME_MS),
             frame_time_buffer: FrameTimeBuffer::new(),
-            terminal_state: TerminalState::new(
-                logical_size.width / 2.0,
-                logical_size.height / 2.0,
-                logical_size.width / 4.0,
-                logical_size.height / 4.0,
-            ),
+            terminal_state: TerminalState::new(logical_size.width, logical_size.height, 0.0, 0.0),
         })
     }
 
@@ -148,12 +143,12 @@ impl AppState<'_> {
             // );
             self.graphics_state.push_ui_square(
                 Vector2 {
-                    x: self.terminal_state.x,
-                    y: self.terminal_state.y,
+                    x: 0.0,
+                    y: -self.terminal_state.height / 2.0,
                 },
                 Vector2 {
                     x: self.terminal_state.width,
-                    y: self.terminal_state.height,
+                    y: 2.0 * self.terminal_state.height,
                 },
                 0.0,
                 (0.0, 0.0, 0.0),
