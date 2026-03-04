@@ -69,7 +69,12 @@ impl UI<'_> {
                 resource: camera_buffer.as_entire_binding(),
             }],
         });
-        let primitive_pipeline = DebugPipeline::new(device, config, &camera_bind_group_layout);
+        let primitive_pipeline = DebugPipeline::new(
+            device,
+            config,
+            &camera_bind_group_layout,
+            Some(wgpu::Face::Front),
+        );
 
         Self {
             sections: vec![],

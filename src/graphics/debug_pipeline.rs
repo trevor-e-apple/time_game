@@ -143,6 +143,7 @@ impl DebugPipeline {
         device: &Device,
         config: &SurfaceConfiguration,
         camera_bind_group_layout: &BindGroupLayout,
+        cull_mode: Option<Face>,
     ) -> Self {
         let pipeline = {
             let shader = load_shader(device, "debug_shader.wgsl", "Debug pipeline shader");
@@ -175,7 +176,7 @@ impl DebugPipeline {
                     topology: PrimitiveTopology::TriangleList,
                     strip_index_format: None,
                     front_face: FrontFace::Ccw,
-                    cull_mode: None,
+                    cull_mode: cull_mode,
                     unclipped_depth: false,
                     polygon_mode: PolygonMode::Fill,
                     conservative: false,

@@ -138,7 +138,12 @@ impl GraphicsState<'_> {
 
         let textured_pipeline = TexturedPipeline::new(&device, &camera_bind_group_layout, &config)
             .context("Failed to make textured pipeline")?;
-        let debug_pipeline = DebugPipeline::new(&device, &config, &camera_bind_group_layout);
+        let debug_pipeline = DebugPipeline::new(
+            &device,
+            &config,
+            &camera_bind_group_layout,
+            Some(wgpu::Face::Back),
+        );
         let ui = UI::new(&device, &config, logical_size);
 
         Ok(Self {
