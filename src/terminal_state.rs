@@ -1,7 +1,10 @@
+use cgmath::Vector2;
 use winit::{
     event::KeyEvent,
     keyboard::{Key, NamedKey},
 };
+
+use crate::graphics::GraphicsState;
 
 pub struct TerminalState {
     pub text: String,
@@ -65,6 +68,33 @@ impl TerminalState {
                 Key::Unidentified(_) => {}
                 Key::Dead(_) => {}
             }
+        }
+    }
+
+    pub fn update(&self, graphics_state: &mut GraphicsState) {
+        if self.has_focus {
+            // TODO: this should probably live with the terminal code
+            graphics_state.push_ui_square(
+                Vector2 {
+                    x: self.x + self.width / 2.0,
+                    y: self.y + self.height / 2.0,
+                },
+                Vector2 {
+                    x: self.width,
+                    y: self.height,
+                },
+                0.0,
+                (0.0, 0.0, 0.0),
+            );
+            graphics_state.push_text(
+                &self.text,
+                0.9 * self.height,
+                self.width,
+                self.height,
+                self.x,
+                self.y,
+                (1.0, 1.0, 1.0),
+            );
         }
     }
 }
