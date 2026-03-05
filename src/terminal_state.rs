@@ -11,8 +11,8 @@ pub struct TerminalState {
     pub has_focus: bool,
     pub width: f32,
     pub height: f32,
-    pub x: f32,
-    pub y: f32,
+    pub x: f32, // Top left corner pos x
+    pub y: f32, // Top left corner pos y
 }
 
 impl TerminalState {
@@ -73,7 +73,6 @@ impl TerminalState {
 
     pub fn update(&self, graphics_state: &mut GraphicsState) {
         if self.has_focus {
-            // TODO: this should probably live with the terminal code
             graphics_state.push_ui_square(
                 Vector2 {
                     x: self.x + self.width / 2.0,
