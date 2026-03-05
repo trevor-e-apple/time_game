@@ -1,7 +1,7 @@
 pub mod camera;
 pub mod common_models; // TODO: probably don't reexport this
-mod debug_pipeline;
 mod mipmapper;
+mod no_textures_pipeline;
 mod shader;
 mod texture;
 pub mod textured_pipeline; // TODO: probably don't reexport this
@@ -22,8 +22,8 @@ use wgpu::{
 use winit::{dpi::LogicalSize, window::Window};
 
 use crate::graphics::{
-    camera::Camera2DUniform, debug_pipeline::DebugPipeline, textured_pipeline::TexturedPipeline,
-    ui::UI,
+    camera::Camera2DUniform, no_textures_pipeline::NoTexturesPipeline,
+    textured_pipeline::TexturedPipeline, ui::UI,
 };
 
 pub struct GraphicsState<'a> {
@@ -38,7 +38,7 @@ pub struct GraphicsState<'a> {
     camera_bind_group: BindGroup,
 
     textured_pipeline: TexturedPipeline,
-    debug_pipeline: DebugPipeline,
+    debug_pipeline: NoTexturesPipeline,
 
     ui: UI<'a>,
 }
@@ -138,7 +138,7 @@ impl GraphicsState<'_> {
 
         let textured_pipeline = TexturedPipeline::new(&device, &camera_bind_group_layout, &config)
             .context("Failed to make textured pipeline")?;
-        let debug_pipeline = DebugPipeline::new(
+        let debug_pipeline = NoTexturesPipeline::new(
             &device,
             &config,
             &camera_bind_group_layout,

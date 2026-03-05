@@ -11,12 +11,12 @@ use wgpu_text::{
 };
 use winit::dpi::LogicalSize;
 
-use crate::graphics::{camera::Camera2DUniform, debug_pipeline::DebugPipeline};
+use crate::graphics::{camera::Camera2DUniform, no_textures_pipeline::NoTexturesPipeline};
 
 pub struct UI<'a> {
     brush: TextBrush<FontRef<'a>>,
     sections: Vec<OwnedSection>,
-    primitive_pipeline: DebugPipeline,
+    primitive_pipeline: NoTexturesPipeline,
     camera_bind_group: BindGroup, // Top left is origin
 }
 
@@ -73,7 +73,7 @@ impl UI<'_> {
         // flipping our geometry. So we want the front face to be culled instead of the back.
         // All the geometry in this pipeline is untextured, so we don't need to invert the
         // texel y coordinates.
-        let primitive_pipeline = DebugPipeline::new(
+        let primitive_pipeline = NoTexturesPipeline::new(
             device,
             config,
             &camera_bind_group_layout,

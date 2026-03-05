@@ -129,13 +129,13 @@ struct Triangles {
     num_instances: u32,
 }
 
-pub struct DebugPipeline {
+pub struct NoTexturesPipeline {
     pipeline: RenderPipeline,
     triangles: Triangles,
     squares: Squares,
 }
 
-impl DebugPipeline {
+impl NoTexturesPipeline {
     const MAX_SQUARES: usize = 1000;
     const MAX_TRIANGLES: usize = 1000;
 
