@@ -69,6 +69,10 @@ impl UI<'_> {
                 resource: camera_buffer.as_entire_binding(),
             }],
         });
+        // Note that because we use the top_left_origin projection matrix, we actually end up
+        // flipping our geometry. So we want the front face to be culled instead of the back.
+        // All the geometry in this pipeline is untextured, so we don't need to invert the
+        // texel y coordinates.
         let primitive_pipeline = DebugPipeline::new(
             device,
             config,
@@ -87,6 +91,7 @@ impl UI<'_> {
     pub fn push_text(
         &mut self,
         text: &String,
+        font_size: f32,
         width: f32,
         height: f32,
         x: f32,
@@ -94,7 +99,11 @@ impl UI<'_> {
         color: (f32, f32, f32),
     ) {
         let section = glyph_brush::Section::default()
-            .add_text(glyph_brush::Text::new(text).with_color((color.0, color.1, color.2, 1.0)))
+            .add_text(
+                glyph_brush::Text::new(text)
+                    .with_color((color.0, color.1, color.2, 1.0))
+                    .with_scale(font_size),
+            )
             .with_bounds((width, height))
             .with_layout(
                 glyph_brush::Layout::default_single_line().v_align(glyph_brush::VerticalAlign::Top),

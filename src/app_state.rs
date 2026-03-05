@@ -54,7 +54,7 @@ impl AppState<'_> {
             start_time: Instant::now(),
             target_frame_time: Duration::from_millis(Self::DEFAULT_FRAME_TIME_MS),
             frame_time_buffer: FrameTimeBuffer::new(),
-            terminal_state: TerminalState::new(logical_size.width, logical_size.height, 0.0, 0.0),
+            terminal_state: TerminalState::new(logical_size.width, 20.0, 0.0, 0.0),
         })
     }
 
@@ -129,32 +129,21 @@ impl AppState<'_> {
 
         if self.terminal_state.has_focus {
             // TODO: this should probably live with the terminal code
-            // self.graphics_state.push_debug_square(
-            //     Vector2 {
-            //         x: self.terminal_state.x + self.terminal_state.width / 2.0,
-            //         y: self.terminal_state.y + self.terminal_state.height / 2.0,
-            //     },
-            //     Vector2 {
-            //         x: self.terminal_state.width,
-            //         y: self.terminal_state.height,
-            //     },
-            //     0.0,
-            //     (0.0, 0.0, 0.0),
-            // );
             self.graphics_state.push_ui_square(
                 Vector2 {
-                    x: 0.0,
-                    y: -self.terminal_state.height / 2.0,
+                    x: self.terminal_state.x + self.terminal_state.width / 2.0,
+                    y: self.terminal_state.y + self.terminal_state.height / 2.0,
                 },
                 Vector2 {
                     x: self.terminal_state.width,
-                    y: 2.0 * self.terminal_state.height,
+                    y: self.terminal_state.height,
                 },
                 0.0,
                 (0.0, 0.0, 0.0),
             );
             self.graphics_state.push_text(
                 &self.terminal_state.text,
+                0.9 * self.terminal_state.height,
                 self.terminal_state.width,
                 self.terminal_state.height,
                 self.terminal_state.x,

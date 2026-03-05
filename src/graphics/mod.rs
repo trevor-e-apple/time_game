@@ -285,12 +285,14 @@ impl GraphicsState<'_> {
     pub fn push_text(
         &mut self,
         text: &String,
+        font_size: f32,
         width: f32,
         height: f32,
         x: f32,
         y: f32,
         color: (f32, f32, f32),
     ) {
-        self.ui.push_text(text, width, height, x, y, color)
+        self.ui
+            .push_text(text, font_size, width, height, x, y, color)
     }
 }
