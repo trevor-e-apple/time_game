@@ -142,15 +142,13 @@ impl AppState<'_> {
             let end_time = Instant::now();
             let duration = end_time - self.start_time;
 
-            // TODO: conditional compilation?
-            println!("Frame time: {} us", duration.as_micros());
+            // println!("Frame time: {} us", duration.as_micros());
 
             if self.target_frame_time > duration {
                 let sleep_time = self.target_frame_time - duration;
                 thread::sleep(sleep_time);
             }
 
-            // TODO: conditional compilation?
             self.frame_time_buffer.add_frame(duration);
         }
         Ok(())

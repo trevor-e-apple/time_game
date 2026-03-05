@@ -98,6 +98,7 @@ impl TerminalState {
                 self.y,
                 (1.0, 1.0, 1.0),
             );
+            todo!("Get bounding box from ui layer");
         }
     }
 }

@@ -1,4 +1,5 @@
 use cgmath::Vector2;
+use image::math::Rect;
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor,
     BindGroupLayoutEntry, BindingType, BufferBindingType, BufferUsages, RenderPass, ShaderStages,
@@ -18,6 +19,10 @@ pub struct UI<'a> {
     sections: Vec<OwnedSection>,
     primitive_pipeline: NoTexturesPipeline,
     camera_bind_group: BindGroup, // Top left is origin
+}
+
+struct SectionHandle {
+    index: usize,
 }
 
 impl UI<'_> {
@@ -97,7 +102,7 @@ impl UI<'_> {
         x: f32,
         y: f32,
         color: (f32, f32, f32),
-    ) {
+    ) -> SectionHandle {
         let section = glyph_brush::Section::default()
             .add_text(
                 glyph_brush::Text::new(text)
@@ -110,7 +115,33 @@ impl UI<'_> {
             )
             .with_screen_position((x, y))
             .to_owned();
+
+        let result = self.sections.len();
         self.sections.push(section);
+
+        SectionHandle { index: result }
+    }
+
+    pub fn get_bounding_box(
+        &mut self,
+        section_handle: SectionHandle,
+    ) -> Option<(Vector2<f32>, Vector2<f32>)> {
+        let section = self.sections[section_handle.index].to_borrowed();
+
+        match self.brush.glyph_bounds(section) {
+            Some(rect) => {
+                let top_left = Vector2 {
+                    x: rect.min.x,
+                    y: rect.min.y,
+                };
+                let dim = Vector2 {
+                    x: rect.width(),
+                    y: rect.height(),
+                };
+                Some((top_left, dim))
+            }
+            None => return None,
+        }
     }
 
     pub fn push_square(
