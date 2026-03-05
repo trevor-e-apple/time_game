@@ -37,10 +37,14 @@ impl TerminalState {
                         todo!();
                     }
                     NamedKey::Backspace => {
-                        self.text.pop();
+                        if state.is_pressed() {
+                            self.text.pop();
+                        }
                     }
                     NamedKey::Space => {
-                        self.text.push(' ');
+                        if state.is_pressed() {
+                            self.text.push(' ');
+                        }
                     }
                     NamedKey::Escape => {
                         self.has_focus = false;
