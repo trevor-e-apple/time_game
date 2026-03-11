@@ -89,18 +89,32 @@ impl TerminalState {
                 0.0,
                 (0.0, 0.0, 0.0),
             );
+            let text_color = (1.0, 1.0, 1.0);
+            let font_size = 0.9 * self.height;
             let section_handle = graphics_state.ui.push_text(
                 &self.text,
-                0.9 * self.height,
+                font_size,
                 self.width,
                 self.height,
                 self.x,
                 self.y,
-                (1.0, 1.0, 1.0),
+                text_color,
             );
             let (top_left, dim) = graphics_state.ui.get_bounding_box(section_handle);
             if dim.x > 0.0 || dim.y > 0.0 {
-                graphics_state.push_ui_square(top_left + 0.5 * dim, dim, 0.0, (1.0, 0.0, 0.0));
+                graphics_state.push_ui_square(
+                    top_left
+                        + Vector2 {
+                            x: dim.x,
+                            y: 0.5 * dim.y,
+                        },
+                    Vector2 {
+                        x: 1.0,
+                        y: font_size,
+                    },
+                    0.0,
+                    text_color,
+                );
             }
         }
     }
