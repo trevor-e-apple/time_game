@@ -89,7 +89,7 @@ impl TerminalState {
                 0.0,
                 (0.0, 0.0, 0.0),
             );
-            graphics_state.push_text(
+            let section_handle = graphics_state.ui.push_text(
                 &self.text,
                 0.9 * self.height,
                 self.width,
@@ -98,7 +98,10 @@ impl TerminalState {
                 self.y,
                 (1.0, 1.0, 1.0),
             );
-            todo!("Get bounding box from ui layer");
+            let (top_left, dim) = graphics_state.ui.get_bounding_box(section_handle);
+            if dim.x > 0.0 || dim.y > 0.0 {
+                graphics_state.push_ui_square(top_left + 0.5 * dim, dim, 0.0, (1.0, 0.0, 0.0));
+            }
         }
     }
 }

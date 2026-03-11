@@ -21,7 +21,7 @@ pub struct UI<'a> {
     camera_bind_group: BindGroup, // Top left is origin
 }
 
-struct SectionHandle {
+pub struct SectionHandle {
     index: usize,
 }
 
@@ -125,7 +125,7 @@ impl UI<'_> {
     pub fn get_bounding_box(
         &mut self,
         section_handle: SectionHandle,
-    ) -> Option<(Vector2<f32>, Vector2<f32>)> {
+    ) -> (Vector2<f32>, Vector2<f32>) {
         let section = self.sections[section_handle.index].to_borrowed();
 
         match self.brush.glyph_bounds(section) {
@@ -138,9 +138,12 @@ impl UI<'_> {
                     x: rect.width(),
                     y: rect.height(),
                 };
-                Some((top_left, dim))
+                (top_left, dim)
             }
-            None => return None,
+            None => {
+                // If glyph_bounds returns None, then the section is empty
+                (Vector2 { x: 0.0, y: 0.0 }, Vector2 { x: 0.0, y: 0.0 })
+            }
         }
     }
 

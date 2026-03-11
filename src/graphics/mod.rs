@@ -40,7 +40,7 @@ pub struct GraphicsState<'a> {
     textured_pipeline: TexturedPipeline,
     debug_pipeline: NoTexturesPipeline,
 
-    ui: UI<'a>,
+    pub ui: UI<'a>,
 }
 
 impl GraphicsState<'_> {
@@ -280,19 +280,5 @@ impl GraphicsState<'_> {
     ) {
         self.debug_pipeline
             .push_triangle(&self.queue, position, scale, rotation, color);
-    }
-
-    pub fn push_text(
-        &mut self,
-        text: &String,
-        font_size: f32,
-        width: f32,
-        height: f32,
-        x: f32,
-        y: f32,
-        color: (f32, f32, f32),
-    ) {
-        self.ui
-            .push_text(text, font_size, width, height, x, y, color)
     }
 }
