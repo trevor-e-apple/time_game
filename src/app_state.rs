@@ -64,6 +64,9 @@ impl AppState<'_> {
     pub fn resize(&mut self, width: u32, height: u32) {
         self.graphics_state.resize(width, height);
         self.logical_size = self.graphics_state.get_logical_size();
+
+        // After resizing, disable user resizing
+        self.window.set_resizable(false);
     }
 
     pub fn update(&mut self) {
@@ -72,10 +75,10 @@ impl AppState<'_> {
         // Chess board
         {
             let scale = Vector2 { x: 100.0, y: 100.0 };
-            let x_offset = 100.0;
-            let y_offset = 100.0;
-            let rows = 8;
-            let columns = 8;
+            let rows = 9;
+            let columns = 9;
+            let x_offset = (self.logical_size.width / 2.0) - ((rows / 2) as f32 * scale.x);
+            let y_offset = (self.logical_size.height / 2.0) - ((columns / 2) as f32 * scale.y);
             for row in 0..rows {
                 for column in 0..columns {
                     let color = if row % 2 == 0 {
