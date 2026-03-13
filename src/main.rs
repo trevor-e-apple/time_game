@@ -8,6 +8,7 @@ use crate::app_state::AppState;
 use std::sync::Arc;
 use winit::{
     application::ApplicationHandler,
+    dpi::{LogicalSize, PhysicalSize},
     event::{KeyEvent, WindowEvent},
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
     keyboard::{KeyCode, PhysicalKey},
@@ -66,6 +67,14 @@ impl ApplicationHandler for App<'_> {
                 .create_window(Window::default_attributes())
                 .unwrap(),
         );
+        match window.request_inner_size(PhysicalSize::new(1920, 1080)) {
+            Some(_) => {
+                // immediate return
+            }
+            None => {
+                // Resized by display system
+            }
+        };
 
         // Use pollster for lightweight blocking on async function
         self.state = Some(pollster::block_on(AppState::resumed(window)).unwrap());

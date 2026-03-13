@@ -69,65 +69,36 @@ impl AppState<'_> {
     pub fn update(&mut self) {
         self.start_time = Instant::now();
 
-        // Main entities
+        // Chess board
         {
-            self.graphics_state.push_textured_quad(
-                Vector2::new(
-                    self.logical_size.width / 2.0,
-                    self.logical_size.height / 2.0,
-                ),
-                Vector2::new(200.0, 200.0),
-                1,
-                "happy-tree.png",
-            );
-            self.graphics_state.push_textured_quad(
-                Vector2::new(self.logical_size.width, self.logical_size.height),
-                Vector2::new(200.0, 200.0),
-                1,
-                "happy-tree.png",
-            );
-            self.graphics_state.push_textured_quad(
-                Vector2::new(
-                    self.logical_size.width / 2.0,
-                    self.logical_size.height / 2.0,
-                ),
-                Vector2::new(200.0, 200.0),
-                2,
-                "happy-tree-two.png",
-            );
-
-            self.graphics_state.push_textured_quad(
-                Vector2::new(
-                    self.logical_size.width / 4.0,
-                    self.logical_size.height / 4.0,
-                ),
-                Vector2::new(50.0, 50.0),
-                2,
-                "happy-tree-two.png",
-            );
-
-            self.graphics_state.push_textured_quad(
-                Vector2::new(0.0, 0.0),
-                Vector2::new(200.0, 200.0),
-                2,
-                "happy-tree-two.png",
-            );
-        }
-
-        // Debug entities
-        {
-            self.graphics_state.push_debug_square(
-                Vector2::new(50.0, 50.0),
-                Vector2::new(30.0, 30.0),
-                3.14 / 4.0,
-                (1.0, 0.0, 1.0),
-            );
-            self.graphics_state.push_debug_triangle(
-                Vector2::new(100.0, 100.0),
-                Vector2::new(30.0, 30.0),
-                3.14 / 4.0,
-                (0.0, 1.0, 1.0),
-            );
+            let scale = Vector2 { x: 100.0, y: 100.0 };
+            let x_offset = 100.0;
+            let y_offset = 100.0;
+            let rows = 8;
+            let columns = 8;
+            for row in 0..rows {
+                for column in 0..columns {
+                    let color = if row % 2 == 0 {
+                        if column % 2 == 0 {
+                            (1.0, 1.0, 1.0)
+                        } else {
+                            (0.0, 0.0, 0.0)
+                        }
+                    } else {
+                        if column % 2 == 0 {
+                            (0.0, 0.0, 0.0)
+                        } else {
+                            (1.0, 1.0, 1.0)
+                        }
+                    };
+                    let position = Vector2 {
+                        x: (column as f32) * scale.x + x_offset,
+                        y: (row as f32) * scale.y + y_offset,
+                    };
+                    self.graphics_state
+                        .push_debug_square(position, scale, 0.0, color);
+                }
+            }
         }
 
         self.terminal_state.update(&mut self.graphics_state);
