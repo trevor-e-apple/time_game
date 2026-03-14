@@ -1,5 +1,6 @@
 mod app_state;
 mod camera_controller;
+mod game;
 mod graphics;
 mod terminal_state;
 
