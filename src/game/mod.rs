@@ -1,19 +1,40 @@
+mod rect;
 use cgmath::Vector2;
-use winit::{
-    dpi::LogicalSize,
-    event::{KeyEvent, WindowEvent},
-};
+use winit::{dpi::LogicalSize, event::WindowEvent};
 
-use crate::graphics::GraphicsState;
+use crate::{game::rect::Rect, graphics::GraphicsState};
 
-pub struct GameState {}
+struct Entity {
+    interactive_area: Rect,
+}
+
+pub struct GameState {
+    entities: Vec<Entity>,
+}
 
 impl GameState {
     pub fn new() -> Self {
-        Self {}
+        Self { entities: vec![] }
     }
 
-    pub fn handle_event(&mut self, event: &WindowEvent) {}
+    pub fn handle_event(&mut self, event: &WindowEvent) -> Result<(), ()> {
+        match event {
+            WindowEvent::MouseInput {
+                device_id,
+                state,
+                button,
+            } => match button {
+                winit::event::MouseButton::Left => {
+                    for entity in &self.entities {}
+                    return Err(());
+                }
+                _ => {
+                    return Err(());
+                }
+            },
+            _ => Err(()),
+        }
+    }
 
     pub fn update(&self, graphics_state: &mut GraphicsState<'_>, logical_size: &LogicalSize<f32>) {
         // Chess board

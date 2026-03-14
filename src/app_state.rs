@@ -108,7 +108,10 @@ impl AppState<'_> {
             }
             _ => match self.terminal_state.handle_event(&event) {
                 Ok(_) => {}
-                Err(_) => self.game_state.handle_event(&event),
+                Err(_) => match self.game_state.handle_event(&event) {
+                    Ok(_) => {}
+                    Err(_) => {}
+                },
             },
         }
     }
