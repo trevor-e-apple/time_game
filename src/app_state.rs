@@ -6,8 +6,7 @@ use std::{
 
 use crate::{game::GameState, graphics::GraphicsState, terminal_state::TerminalState};
 
-use cgmath::Vector2;
-use winit::{dpi::LogicalSize, event::KeyEvent, window::Window};
+use winit::{dpi::LogicalSize, event::WindowEvent, window::Window};
 
 /// For tracking the last n frame times
 struct FrameTimeBuffer {
@@ -98,7 +97,23 @@ impl AppState<'_> {
         Ok(())
     }
 
-    pub fn keyboard_input(&mut self, event: KeyEvent) {
-        self.terminal_state.keyboard_input(event);
+    pub fn handle_event(&mut self, event: WindowEvent) {
+        match event {
+            WindowEvent::Resized(size) => self.resize(size.width, size.height),
+            WindowEvent::RedrawRequested => {
+                // TODO: should update be called somewhere else? Is redrawrequested guaranteed to be called regularly?
+                self.update();
+                // TODO: handle render errors
+                self.render().unwrap();
+            }
+            _ => match self.terminal_state.handle_event(&event) {
+                Ok(_) => {}
+                Err(_) => self.game_state.handle_event(&event),
+            },
+        }
     }
+
+    // pub fn keyboard_input(&mut self, event: KeyEvent) {
+
+    // }
 }

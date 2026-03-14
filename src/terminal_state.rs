@@ -1,7 +1,7 @@
 use cgmath::Vector2;
 use winit::{
-    event::KeyEvent,
-    keyboard::{Key, NamedKey},
+    event::{KeyEvent, WindowEvent},
+    keyboard::{Key, NamedKey, PhysicalKey},
 };
 
 use crate::graphics::GraphicsState;
@@ -27,51 +27,62 @@ impl TerminalState {
         }
     }
 
-    pub fn keyboard_input(&mut self, event: KeyEvent) {
-        let logical_key = event.logical_key;
-        let state = event.state;
-        if self.has_focus {
-            match logical_key {
-                Key::Named(k) => match k {
-                    NamedKey::Delete => {
-                        todo!();
+    pub fn handle_event(&mut self, event: &WindowEvent) -> Result<(), ()> {
+        match event {
+            WindowEvent::KeyboardInput {
+                event: key_event, ..
+            } => {
+                let logical_key = &key_event.logical_key;
+                let state = key_event.state;
+                if self.has_focus {
+                    match logical_key {
+                        Key::Named(k) => match k {
+                            NamedKey::Delete => {
+                                todo!();
+                            }
+                            NamedKey::Backspace => {
+                                if state.is_pressed() {
+                                    self.text.pop();
+                                }
+                            }
+                            NamedKey::Space => {
+                                if state.is_pressed() {
+                                    self.text.push(' ');
+                                }
+                            }
+                            NamedKey::Escape => {
+                                self.has_focus = false;
+                            }
+                            _ => {}
+                        },
+                        Key::Character(char) => {
+                            if state.is_pressed() {
+                                let c = char.as_str();
+                                self.text.push_str(c);
+                            }
+                        }
+                        Key::Unidentified(_) => todo!(),
+                        Key::Dead(_) => todo!(),
                     }
-                    NamedKey::Backspace => {
-                        if state.is_pressed() {
-                            self.text.pop();
+                    return Ok(());
+                } else {
+                    match logical_key {
+                        Key::Character(char) => {
+                            let c = char.as_str();
+                            if c == "`" {
+                                self.has_focus = true;
+                                return Ok(());
+                            } else {
+                                return Err(());
+                            }
+                        }
+                        _ => {
+                            return Err(());
                         }
                     }
-                    NamedKey::Space => {
-                        if state.is_pressed() {
-                            self.text.push(' ');
-                        }
-                    }
-                    NamedKey::Escape => {
-                        self.has_focus = false;
-                    }
-                    _ => {}
-                },
-                Key::Character(char) => {
-                    if state.is_pressed() {
-                        let c = char.as_str();
-                        self.text.push_str(c);
-                    }
                 }
-                Key::Unidentified(_) => todo!(),
-                Key::Dead(_) => todo!(),
             }
-        } else {
-            match logical_key {
-                Key::Named(_) => {}
-                Key::Character(char) => {
-                    let c = char.as_str();
-                    if c == "`" {
-                        self.has_focus = true;
-                    }
-                }
-                Key::Unidentified(_) => {}
-                Key::Dead(_) => {}
-            }
+            _ => Err(()),
         }
     }
 

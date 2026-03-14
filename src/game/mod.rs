@@ -1,5 +1,8 @@
 use cgmath::Vector2;
-use winit::dpi::LogicalSize;
+use winit::{
+    dpi::LogicalSize,
+    event::{KeyEvent, WindowEvent},
+};
 
 use crate::graphics::GraphicsState;
 
@@ -9,6 +12,8 @@ impl GameState {
     pub fn new() -> Self {
         Self {}
     }
+
+    pub fn handle_event(&mut self, event: &WindowEvent) {}
 
     pub fn update(&self, graphics_state: &mut GraphicsState<'_>, logical_size: &LogicalSize<f32>) {
         // Chess board

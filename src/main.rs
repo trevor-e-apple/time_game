@@ -27,39 +27,15 @@ impl ApplicationHandler for App<'_> {
         _window_id: winit::window::WindowId,
         event: winit::event::WindowEvent,
     ) {
-        let state = match &mut self.state {
-            Some(state) => state,
+        match &mut self.state {
+            Some(state) => match &event {
+                WindowEvent::CloseRequested => {
+                    event_loop.exit();
+                }
+                _ => state.handle_event(event),
+            },
             None => return,
         };
-
-        // TODO: move this to app state?
-        match event {
-            WindowEvent::CloseRequested => {
-                event_loop.exit();
-            }
-            WindowEvent::Resized(size) => state.resize(size.width, size.height),
-            WindowEvent::RedrawRequested => {
-                // TODO: should update be called somewhere else? Is redrawrequested guaranteed to be called regularly?
-                state.update();
-                // TODO: handle render errors
-                state.render().unwrap();
-            }
-            WindowEvent::KeyboardInput {
-                event: key_event, ..
-            } => {
-                let code = match key_event.physical_key {
-                    PhysicalKey::Code(key_code) => key_code,
-                    PhysicalKey::Unidentified(_) => todo!("We may want to ignore this entirely"),
-                };
-                let key_state = key_event.state;
-                match (code, key_state.is_pressed()) {
-                    _ => {
-                        state.keyboard_input(key_event);
-                    }
-                }
-            }
-            _ => (),
-        }
     }
 
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
