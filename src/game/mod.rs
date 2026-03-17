@@ -1,31 +1,50 @@
 mod rect;
+
 use cgmath::Vector2;
 use winit::{dpi::LogicalSize, event::WindowEvent};
 
 use crate::{game::rect::Rect, graphics::GraphicsState};
 
 struct Entity {
-    interactive_area: Rect,
+    rect: Rect,
 }
 
 pub struct GameState {
+    mouse_position: Vector2<f32>,
     entities: Vec<Entity>,
 }
 
 impl GameState {
     pub fn new() -> Self {
-        Self { entities: vec![] }
+        Self {
+            entities: vec![],
+            mouse_position: Vector2 { x: 0.0, y: 0.0 },
+        }
     }
 
-    pub fn handle_event(&mut self, event: &WindowEvent) -> Result<(), ()> {
+    pub fn handle_event(
+        &mut self,
+        event: &WindowEvent,
+        graphics_state: &GraphicsState<'_>,
+    ) -> Result<(), ()> {
         match event {
-            WindowEvent::MouseInput {
-                device_id,
-                state,
-                button,
-            } => match button {
+            WindowEvent::CursorMoved { position, .. } => {
+                let logical_pos = graphics_state.to_logical(position);
+                self.mouse_position = Vector2 {
+                    x: logical_pos.x as f32,
+                    y: logical_pos.y as f32,
+                };
+                println!("{:?}", self.mouse_position);
+                Ok(())
+            }
+            WindowEvent::MouseInput { state, button, .. } => match button {
                 winit::event::MouseButton::Left => {
-                    for entity in &self.entities {}
+                    let mouse_position = &self.mouse_position;
+                    for entity in &self.entities {
+                        if entity.rect.point_in(mouse_position) {
+                            return Ok(());
+                        }
+                    }
                     return Err(());
                 }
                 _ => {

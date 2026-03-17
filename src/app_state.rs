@@ -108,7 +108,7 @@ impl AppState<'_> {
             }
             _ => match self.terminal_state.handle_event(&event) {
                 Ok(_) => {}
-                Err(_) => match self.game_state.handle_event(&event) {
+                Err(_) => match self.game_state.handle_event(&event, &self.graphics_state) {
                     Ok(_) => {}
                     Err(_) => {}
                 },

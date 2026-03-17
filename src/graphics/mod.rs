@@ -19,7 +19,10 @@ use wgpu::{
     TextureViewDescriptor,
     util::{BufferInitDescriptor, DeviceExt},
 };
-use winit::{dpi::LogicalSize, window::Window};
+use winit::{
+    dpi::{LogicalPosition, LogicalSize, PhysicalPosition},
+    window::Window,
+};
 
 use crate::graphics::{
     camera::Camera2DUniform, no_textures_pipeline::NoTexturesPipeline,
@@ -165,6 +168,18 @@ impl GraphicsState<'_> {
         let window_size = self.window.inner_size();
         let scale_factor = self.window.scale_factor();
         window_size.to_logical(scale_factor)
+    }
+
+    pub fn to_logical(&self, physical_pos: &PhysicalPosition<f64>) -> Vector2<f32> {
+        let window_size = self.window.inner_size();
+        let scale_factor = self.window.scale_factor();
+        let window_logical_size: LogicalSize<f64> = window_size.to_logical(scale_factor);
+
+        let logical_pos: LogicalPosition<f64> = physical_pos.to_logical(scale_factor);
+        let posx = logical_pos.x as f32;
+        let posy = (window_logical_size.height - logical_pos.y) as f32;
+
+        Vector2 { x: posx, y: posy }
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
