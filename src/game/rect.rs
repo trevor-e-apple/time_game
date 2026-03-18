@@ -14,7 +14,7 @@ impl Rect {
     }
 
     pub fn get_center(&self) -> Vector2<f32> {
-        todo!()
+        self.bottom_left + (self.dim / 2.0)
     }
 
     pub fn point_in(&self, point: &Vector2<f32>) -> bool {

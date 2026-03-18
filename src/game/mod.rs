@@ -80,8 +80,16 @@ impl GameState {
                 winit::event::MouseButton::Left => {
                     let mouse_position = &self.mouse_position;
                     for entity in &self.entities {
-                        if entity.rect.point_in(mouse_position) {
-                            return Ok(());
+                        match entity {
+                            Entity::ChessSquare(chess_square) => {
+                                if chess_square.rect.point_in(mouse_position) {
+                                    println!(
+                                        "you've clicked chess_square with coordinates {:?}",
+                                        chess_square.rect.get_center()
+                                    );
+                                    return Ok(());
+                                }
+                            }
                         }
                     }
                     return Err(());

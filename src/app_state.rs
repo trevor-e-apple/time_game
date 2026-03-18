@@ -45,6 +45,7 @@ impl AppState<'_> {
     pub async fn resumed(window: Arc<Window>) -> anyhow::Result<Self> {
         let graphics_state = GraphicsState::new(window.clone()).await?;
 
+        let game_state = GameState::new(&graphics_state);
         let logical_size = graphics_state.get_logical_size();
 
         Ok(Self {
@@ -55,7 +56,7 @@ impl AppState<'_> {
             target_frame_time: Duration::from_millis(Self::DEFAULT_FRAME_TIME_MS),
             frame_time_buffer: FrameTimeBuffer::new(),
             terminal_state: TerminalState::new(logical_size.width, 20.0, 0.0, 0.0),
-            game_state: GameState::new(),
+            game_state,
         })
     }
 
@@ -70,8 +71,7 @@ impl AppState<'_> {
     pub fn update(&mut self) {
         self.start_time = Instant::now();
 
-        self.game_state
-            .update(&mut self.graphics_state, &self.logical_size);
+        self.game_state.update(&mut self.graphics_state);
 
         self.terminal_state.update(&mut self.graphics_state);
     }
