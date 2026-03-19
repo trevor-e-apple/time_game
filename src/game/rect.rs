@@ -8,7 +8,7 @@ pub struct Rect {
 impl Rect {
     pub fn with_center(center: Vector2<f32>, dim: Vector2<f32>) -> Self {
         Self {
-            bottom_left: center - dim,
+            bottom_left: center - (dim / 2.0),
             dim,
         }
     }
