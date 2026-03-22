@@ -1,8 +1,18 @@
 use cgmath::Vector2;
 
+#[derive(Clone, Copy)]
 pub struct Rect {
     pub bottom_left: Vector2<f32>,
     pub dim: Vector2<f32>,
+}
+
+impl Default for Rect {
+    fn default() -> Self {
+        Self {
+            bottom_left: Vector2 { x: 0.0, y: 0.0 },
+            dim: Vector2 { x: 0.0, y: 0.0 },
+        }
+    }
 }
 
 impl Rect {
