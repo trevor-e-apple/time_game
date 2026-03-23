@@ -110,6 +110,10 @@ impl GameState {
             WindowEvent::MouseInput { state, button, .. } => match button {
                 winit::event::MouseButton::Left => {
                     let mouse_position = &self.mouse_position;
+                    if state.is_pressed() {
+                        // Handle mouse up events only currently
+                        return Err(());
+                    }
 
                     // Let pieces handle event
                     for row_index in 0..BOARD_ROWS {
@@ -180,6 +184,17 @@ impl GameState {
     }
 
     pub fn update(&self, graphics_state: &mut GraphicsState<'_>) {
+        for square_row in self.board_squares {
+            for board_square in square_row {
+                graphics_state.push_debug_square(
+                    board_square.rect.get_center(),
+                    board_square.rect.dim,
+                    0.0,
+                    board_square.color,
+                );
+            }
+        }
+
         for piece_row in self.board_pieces {
             for piece in piece_row {
                 match piece {
@@ -193,16 +208,6 @@ impl GameState {
                     }
                     None => {}
                 }
-            }
-        }
-        for square_row in self.board_squares {
-            for board_square in square_row {
-                graphics_state.push_debug_square(
-                    board_square.rect.get_center(),
-                    board_square.rect.dim,
-                    0.0,
-                    board_square.color,
-                );
             }
         }
     }
