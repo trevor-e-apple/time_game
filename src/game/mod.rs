@@ -1,6 +1,7 @@
 mod rect;
 
 use cgmath::Vector2;
+use rand::{prelude::*, rngs::ThreadRng};
 use winit::event::WindowEvent;
 
 use crate::{game::rect::Rect, graphics::GraphicsState};
@@ -22,6 +23,10 @@ struct BoardPiece {
     rect: Rect,
     color: (f32, f32, f32),
     selected: bool,
+    show_text: bool,
+
+    attack: u32,
+    life: u32,
 }
 
 impl BoardPiece {
@@ -40,6 +45,7 @@ pub struct GameState {
     board_squares: [[BoardSquare; BOARD_COLUMNS]; BOARD_ROWS],
     board_pieces: [[Option<BoardPiece>; BOARD_COLUMNS]; BOARD_ROWS],
     selected_piece: Option<(usize, usize)>,
+    rng: ThreadRng,
 }
 
 impl GameState {
@@ -85,11 +91,14 @@ impl GameState {
 
         let board_pieces = [[None; BOARD_COLUMNS]; BOARD_ROWS];
 
+        let rng = rand::rng();
+
         Self {
             board_squares,
             board_pieces,
             mouse_position: Vector2 { x: 0.0, y: 0.0 },
             selected_piece: None,
+            rng,
         }
     }
 
@@ -105,6 +114,22 @@ impl GameState {
                     x: logical_pos.x as f32,
                     y: logical_pos.y as f32,
                 };
+
+                for row_index in 0..BOARD_ROWS {
+                    for column_index in 0..BOARD_COLUMNS {
+                        match &mut self.board_pieces[row_index][column_index] {
+                            Some(board_piece) => {
+                                if board_piece.rect.point_in(&self.mouse_position) {
+                                    println!("show text");
+                                    board_piece.show_text = true;
+                                } else {
+                                    board_piece.show_text = false;
+                                }
+                            }
+                            None => {}
+                        }
+                    }
+                }
                 Ok(())
             }
             WindowEvent::MouseInput { state, button, .. } => match button {
@@ -165,6 +190,9 @@ impl GameState {
                                                     ),
                                                     color: UNSELECTED_COLOR,
                                                     selected: false,
+                                                    show_text: false,
+                                                    attack: self.rng.random_range(0..10),
+                                                    life: self.rng.random_range(0..10),
                                                 });
                                         }
                                     },
@@ -205,6 +233,17 @@ impl GameState {
                             0.0,
                             piece.color,
                         );
+                        if piece.show_text {
+                            graphics_state.ui.push_text(
+                                &format!("Attack: {} Life: {}", piece.attack, piece.life),
+                                20.0,
+                                1000.0,
+                                1000.0,
+                                0.0,
+                                0.0,
+                                piece.color,
+                            );
+                        }
                     }
                     None => {}
                 }
