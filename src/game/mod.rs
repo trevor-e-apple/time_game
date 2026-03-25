@@ -109,6 +109,18 @@ impl GameState {
         }
     }
 
+    fn move_piece(&mut self, from_coordinates: (usize, usize), to_coordinates: (usize, usize)) {
+        let mut piece = self.board_pieces[from_coordinates.0][from_coordinates.1].unwrap();
+        let board_square = self.board_squares[to_coordinates.0][to_coordinates.1];
+
+        // Update piece rect
+        piece.rect.set_center(board_square.rect.get_center());
+
+        // Update piece lookup table
+        self.board_pieces[from_coordinates.0][from_coordinates.1] = None;
+        self.board_pieces[to_coordinates.0][to_coordinates.1] = Some(piece);
+    }
+
     pub fn handle_event(
         &mut self,
         event: &WindowEvent,
@@ -177,15 +189,10 @@ impl GameState {
                                     Some(_) => todo!("Attack"),
                                     None => match self.selected_piece {
                                         Some(selected_piece_coordinates) => {
-                                            // Move piece
-                                            let selected_piece = self.board_pieces
-                                                [selected_piece_coordinates.0]
-                                                [selected_piece_coordinates.1]
-                                                .unwrap();
-                                            self.board_pieces[selected_piece_coordinates.0]
-                                                [selected_piece_coordinates.1] = None;
-                                            self.board_pieces[row_index][column_index] =
-                                                Some(selected_piece);
+                                            self.move_piece(
+                                                selected_piece_coordinates,
+                                                (row_index, column_index),
+                                            );
                                         }
                                         None => {
                                             // Create new piece

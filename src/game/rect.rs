@@ -27,6 +27,10 @@ impl Rect {
         self.bottom_left + (self.dim / 2.0)
     }
 
+    pub fn set_center(&mut self, center: Vector2<f32>) {
+        self.bottom_left = center - (self.dim / 2.0);
+    }
+
     pub fn point_in(&self, point: &Vector2<f32>) -> bool {
         point.x > self.bottom_left.x
             && point.x < self.bottom_left.x + self.dim.x
