@@ -2,7 +2,7 @@ mod rect;
 
 use cgmath::Vector2;
 use rand::{prelude::*, rngs::ThreadRng};
-use winit::event::WindowEvent;
+use winit::{dpi::LogicalSize, event::WindowEvent};
 
 use crate::{game::rect::Rect, graphics::GraphicsState};
 
@@ -46,6 +46,13 @@ pub struct GameState {
     board_pieces: [[Option<BoardPiece>; BOARD_COLUMNS]; BOARD_ROWS],
     selected_piece: Option<(usize, usize)>,
     rng: ThreadRng,
+}
+
+fn to_ui_space(world_vector: &Vector2<f32>, window_logical_size: LogicalSize<f32>) -> Vector2<f32> {
+    Vector2 {
+        x: world_vector.x,
+        y: window_logical_size.height - world_vector.y,
+    }
 }
 
 impl GameState {
@@ -234,13 +241,17 @@ impl GameState {
                             piece.color,
                         );
                         if piece.show_text {
+                            let pos = to_ui_space(
+                                &piece.rect.bottom_left,
+                                graphics_state.get_logical_size(),
+                            );
                             graphics_state.ui.push_text(
                                 &format!("Attack: {} Life: {}", piece.attack, piece.life),
-                                20.0,
+                                piece.rect.dim.y / 2.0,
                                 1000.0,
                                 1000.0,
-                                0.0,
-                                0.0,
+                                pos.x,
+                                pos.y,
                                 piece.color,
                             );
                         }
