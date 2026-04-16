@@ -25,18 +25,20 @@ struct BoardPiece {
     selected: bool,
     show_text: bool,
 
-    attack: u32,
-    life: u32,
+    attack: i32,
+    full_life: i32,
+    life: i32,
 }
 
 impl BoardPiece {
-    fn toggle_select(&mut self) {
-        self.selected = !self.selected;
-        if self.selected {
-            self.color = SELECTED_COLOR;
-        } else {
-            self.color = UNSELECTED_COLOR;
-        }
+    fn select(&mut self) {
+        self.selected = true;
+        self.color = SELECTED_COLOR;
+    }
+
+    fn unselect(&mut self) {
+        self.selected = false;
+        self.color = UNSELECTED_COLOR;
     }
 }
 
@@ -121,6 +123,42 @@ impl GameState {
         self.board_pieces[to_coordinates.0][to_coordinates.1] = Some(piece);
     }
 
+    fn attack_piece(
+        &mut self,
+        attacking_piece_coordinates: (usize, usize),
+        attacked_piece_coordinates: (usize, usize),
+    ) {
+        let attacking_piece = &self.board_pieces[attacking_piece_coordinates.0]
+            [attacked_piece_coordinates.1]
+            .unwrap();
+        let attacked_piece = &mut self.board_pieces[attacked_piece_coordinates.0]
+            [attacked_piece_coordinates.1]
+            .unwrap();
+
+        attacked_piece.life -= attacking_piece.attack;
+
+        if attacked_piece.life <= 0 {
+            self.board_pieces[attacked_piece_coordinates.0][attacked_piece_coordinates.1] = None;
+        }
+    }
+
+    fn select_piece(&mut self, piece_coordinates: (usize, usize)) {
+        match &mut self.board_pieces[piece_coordinates.0][piece_coordinates.1] {
+            Some(piece) => {
+                piece.select();
+                self.selected_piece = Some(piece_coordinates);
+                println!("{:?}", piece.color);
+            }
+            None => todo!(),
+        }
+    }
+
+    fn unselect_piece(&mut self, piece_coordinates: (usize, usize)) {
+        let piece = &mut self.board_pieces[piece_coordinates.0][piece_coordinates.1].unwrap();
+        piece.unselect();
+        self.selected_piece = None;
+    }
+
     pub fn handle_event(
         &mut self,
         event: &WindowEvent,
@@ -139,7 +177,6 @@ impl GameState {
                         match &mut self.board_pieces[row_index][column_index] {
                             Some(board_piece) => {
                                 if board_piece.rect.point_in(&self.mouse_position) {
-                                    println!("show text");
                                     board_piece.show_text = true;
                                 } else {
                                     board_piece.show_text = false;
@@ -153,26 +190,35 @@ impl GameState {
             }
             WindowEvent::MouseInput { state, button, .. } => match button {
                 winit::event::MouseButton::Left => {
-                    let mouse_position = &self.mouse_position;
+                    let mouse_position = self.mouse_position;
                     if state.is_pressed() {
                         // Handle mouse up events only currently
                         return Err(());
                     }
 
                     // Let pieces handle event
+                    let mut did_something = false;
                     for row_index in 0..BOARD_ROWS {
                         for column_index in 0..BOARD_COLUMNS {
-                            let piece = &mut self.board_pieces[row_index][column_index];
-                            match piece {
+                            match self.board_pieces[row_index][column_index] {
                                 Some(piece) => {
-                                    if piece.rect.point_in(mouse_position) {
-                                        piece.toggle_select();
-                                        if piece.selected {
-                                            self.selected_piece = Some((row_index, column_index));
-                                        } else {
-                                            self.selected_piece = None;
-                                        }
-                                        return Ok(());
+                                    if piece.rect.point_in(&mouse_position) {
+                                        // match self.selected_piece {
+                                        //     Some(selected_piece_coordinates) => {
+                                        //         println!(
+                                        //             "Unselecting piece at {:?}",
+                                        //             selected_piece_coordinates
+                                        //         );
+                                        //         self.unselect_piece(selected_piece_coordinates);
+                                        //     }
+                                        //     None => {}
+                                        // }
+                                        // println!(
+                                        //     "Selecting piece at {:?}",
+                                        //     (row_index, column_index)
+                                        // );
+                                        self.select_piece((row_index, column_index));
+                                        did_something = true;
                                     }
                                 }
                                 None => {}
@@ -180,22 +226,49 @@ impl GameState {
                         }
                     }
 
+                    if did_something {
+                        for row_index in 0..BOARD_ROWS {
+                            for column_index in 0..BOARD_COLUMNS {
+                                match &self.board_pieces[row_index][column_index] {
+                                    Some(piece) => {
+                                        println!("{:?}", piece.color)
+                                    }
+                                    None => {}
+                                }
+                            }
+                        }
+                        return Ok(());
+                    }
+
                     // Let board squares handle event
                     for row_index in 0..BOARD_ROWS {
                         for column_index in 0..BOARD_COLUMNS {
                             let board_square = self.board_squares[row_index][column_index];
-                            if board_square.rect.point_in(mouse_position) {
+                            if board_square.rect.point_in(&mouse_position) {
                                 match self.board_pieces[row_index][column_index] {
-                                    Some(_) => todo!("Attack"),
-                                    None => match self.selected_piece {
+                                    Some(_) => match self.selected_piece {
                                         Some(selected_piece_coordinates) => {
-                                            self.move_piece(
-                                                selected_piece_coordinates,
-                                                (row_index, column_index),
-                                            );
+                                            // Attack other piece
+                                            // self.attack_piece(
+                                            //     selected_piece_coordinates,
+                                            //     (row_index, column_index),
+                                            // );
                                         }
                                         None => {
+                                            // Don't do anything if there isn't a selected piece
+                                        }
+                                    },
+                                    None => match self.selected_piece {
+                                        Some(selected_piece_coordinates) => {
+                                            // self.move_piece(
+                                            //     selected_piece_coordinates,
+                                            //     (row_index, column_index),
+                                            // );
+                                        }
+                                        None => {
+                                            println!("Create piece");
                                             // Create new piece
+                                            let full_life = self.rng.random_range(1..11);
                                             self.board_pieces[row_index][column_index] =
                                                 Some(BoardPiece {
                                                     rect: Rect::with_center(
@@ -206,7 +279,8 @@ impl GameState {
                                                     selected: false,
                                                     show_text: false,
                                                     attack: self.rng.random_range(0..10),
-                                                    life: self.rng.random_range(0..10),
+                                                    full_life,
+                                                    life: full_life,
                                                 });
                                         }
                                     },
@@ -237,9 +311,9 @@ impl GameState {
             }
         }
 
-        for piece_row in self.board_pieces {
-            for piece in piece_row {
-                match piece {
+        for row_index in 0..BOARD_ROWS {
+            for column_index in 0..BOARD_COLUMNS {
+                match &self.board_pieces[row_index][column_index] {
                     Some(piece) => {
                         graphics_state.push_debug_square(
                             piece.rect.get_center(),
