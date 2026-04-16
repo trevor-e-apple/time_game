@@ -1,5 +1,2 @@
-/target
-perf.data
-perf.data.*
-profile.json.gz
-flamegraph.svg
+/zig-out
+.zig-cache
