@@ -2,6 +2,7 @@ const builtin = @import("builtin");
 const sdl3 = @import("sdl3");
 const std = @import("std");
 
+const fs = std.fs;
 const ArenaAllocator = std.heap.ArenaAllocator;
 
 const fps = 60;
@@ -35,20 +36,26 @@ pub fn main() !void {
     const gpu_device = try sdl3.gpu.Device.init(sdl3.gpu.ShaderFormatFlags{ .spirv = true, .msl = true }, builtin.mode == .Debug, null);
     try gpu_device.claimWindow(window);
 
-    const vertex_shader = vertex_shader_setup: {
+    _ = vertex_shader_setup: {
         // Read shader source
         const env_map = try std.process.getEnvMap(arena.allocator());
         const path_to_shader_dir = env_map.get("SHADER_DIR");
+        if (path_to_shader_dir == null) {
+            std.debug.print("Unable to find SHADER_DIR env variable\n", .{});
+            return;
+        }
+        const shader_file_path = try fs.path.join(arena.allocator(), .{ path_to_shader_dir, "vertex.hlsl" });
+        const shader_file = fs.openFileAbsolute(shader_file_path, fs.File.OpenFlags{ .mode = .read_only });
 
-        const result = try gpu_device.createShader(sdl3.gpu.ShaderCreateInfo{
-            .code,
-            .entry_point,
-            .format,
-            .stage,
-            .num_samplers,
-        });
+        // const result = try gpu_device.createShader(sdl3.gpu.ShaderCreateInfo{
+        //     .code,
+        //     .entry_point,
+        //     .format,
+        //     .stage,
+        //     .num_samplers,
+        // });
 
-        break :vertex_shader_setup result;
+        break :vertex_shader_setup shader_file;
     };
 
     // Load BMP
